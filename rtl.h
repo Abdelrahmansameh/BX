@@ -45,7 +45,9 @@ struct Instr;
 using InstrPtr = std::unique_ptr<Instr const>;
 
 struct Move;
-struct Copy;
+struct Copy; // copy between pseudo
+struct CopyMP; // copy machine registers to pseudo
+struct CopyPM; // copy pseudo to machine registers
 struct Load;
 struct Store;
 struct Binop;
@@ -56,20 +58,35 @@ struct Goto;
 struct Call;
 struct Return;
 
+struct NewFrame;    ///////////////////////////////
+struct DelFrame;    ///////////////////////////////
+struct LoadParam;   ///////////////////////////////
+struct Push;        ///////////////////////////////
+struct Pop;         ///////////////////////////////
+
 struct InstrVisitor {
   virtual ~InstrVisitor() = default;
 #define VISIT_FUNCTION(caseclass) virtual void visit(caseclass const &) = 0
   VISIT_FUNCTION(Move);
-  VISIT_FUNCTION(Copy);
+  VISIT_FUNCTION(Copy); 
+  VISIT_FUNCTION(CopyMP); 
+  VISIT_FUNCTION(CopyPM); 
   VISIT_FUNCTION(Load);
   VISIT_FUNCTION(Store);
   VISIT_FUNCTION(Binop);
   VISIT_FUNCTION(Unop);
   VISIT_FUNCTION(Bbranch);
   VISIT_FUNCTION(Ubranch);
-  VISIT_FUNCTION(Goto);
+  VISIT_FUNCTION( );
   VISIT_FUNCTION(Call);
   VISIT_FUNCTION(Return);
+
+  VISIT_FUNCTION(NewFrame);  ///////////////////////////////
+  VISIT_FUNCTION(DelFrame);  ///////////////////////////////
+  VISIT_FUNCTION(LoadParam); ///////////////////////////////
+  VISIT_FUNCTION(Push);      ///////////////////////////////
+  VISIT_FUNCTION(Pop);       ///////////////////////////////
+
 #undef VISIT_FUNCTION
 };
 
@@ -99,6 +116,7 @@ struct Move : public Instr {
       : source{source}, dest{dest}, succ{succ} {}
 };
 
+// Different Copies
 struct Copy : public Instr {
   Pseudo src, dest;
   Label succ;
@@ -110,6 +128,43 @@ struct Copy : public Instr {
   CONSTRUCTOR(Copy, Pseudo src, Pseudo dest, Label succ)
       : src{src}, dest{dest}, succ{succ} {}
 };
+
+struct CopyMP : public Instr {
+  enum Register : uint16_t {
+    RBX, R12, R13, R14, R15
+  };
+
+  Register src;
+  Pseudo dest;
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "copy " << src << ", " << dest << "  --> " << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(CopyMP, Register src, Pseudo dest, Label succ)
+      : src{src}, dest{dest}, succ{succ} {}
+};
+
+struct CopyPM : public Instr {
+  enum Register : uint16_t {
+    // clang-format off
+    RBX, R12, R13, R14, R15
+    // clang-format on
+  };
+
+  Pseudo src;
+  Register dest;
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "copy " << src << ", " << dest << "  --> " << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(CopyPM, Pseudo src, Register dest, Label succ)
+      : src{src}, dest{dest}, succ{succ} {}
+};
+
 
 struct Load : public Instr {
   std::string src;
@@ -268,6 +323,63 @@ struct Return : public Instr {
   MAKE_VISITABLE
   CONSTRUCTOR(Return, Pseudo arg) : arg{arg} {}
 };
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct NewFrame : public Instr {
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "newframe  --> " << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(NewFrame, Label succ) : succ{succ} {}
+};
+
+struct DelFrame : public Instr {
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "delframe  --> " << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(DelFrame, Label succ) : succ{succ} {}
+};
+
+struct LoadParam : public Instr {
+  int64_t source;
+  Pseudo dest;
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "load_param " << source << ", " << dest << "  --> " << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(LoadParam, int64_t source, Pseudo dest, Label succ)
+      : source{source}, dest{dest}, succ{succ} {}
+};
+
+struct Push : public Instr {
+  Pseudo dest;
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "push " << dest << "  --> " << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(Push, Pseudo dest, Label succ) : dest{dest}, succ{succ} {}
+};
+
+struct Pop : public Instr {
+  Pseudo dest;
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "pop " << dest << "  --> " << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(Pop, Pseudo dest, Label succ) : dest{dest}, succ{succ} {}
+};
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 #undef MAKE_VISITABLE
 
 struct LabelHash {
