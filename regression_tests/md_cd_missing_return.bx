@@ -1,0 +1,16 @@
+// should break because missing return
+
+fun f(x, y : bool) : bool {
+  if (x) {
+    return x && y;
+  } else {
+    if (y) {
+      return y;
+    }
+  }
+}
+
+proc main() {
+  var x = true, y = false, z = f(x, y) : bool;
+  print(z);
+}

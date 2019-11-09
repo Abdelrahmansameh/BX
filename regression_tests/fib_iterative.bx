@@ -1,0 +1,23 @@
+var last_fib = 10 : int64;
+
+proc fib (count : int64) {
+  var x = 0, y = 1, z : int64;
+  { var count = count == 20 : bool; }
+
+  while (count > 0) {
+    count = count - 1;
+    print x;
+    z = x;
+    x = y;
+    y = y + z;
+    if (count % 5 == 0) {
+      print count > 0;
+    }
+    last_fib = x;
+  }
+}
+
+proc main() {
+  fib(10);
+  print last_fib;
+}

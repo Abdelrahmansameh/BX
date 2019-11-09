@@ -1,0 +1,15 @@
+// should print 5 then 10
+proc f(x : int64) {
+  print (x + 5);
+  return;
+}
+
+proc g(x : int64) {
+  print (x);
+  return f(x);
+}
+
+proc main() {
+  var x = 5 : int64;
+  g(x);
+}

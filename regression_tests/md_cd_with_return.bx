@@ -1,0 +1,17 @@
+// should print 60
+fun f(x, y : int64) : int64 {
+  if (x < 10) {
+    return x + 10;
+  } else {
+    if (y == 0) {
+      return 20;
+    } else {
+      return x * y;
+    }
+  }
+}
+
+proc main() {
+  var x = 12, y = 5, z = f(x, y) : int64;
+  print(z);
+}

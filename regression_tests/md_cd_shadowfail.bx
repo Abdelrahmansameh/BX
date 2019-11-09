@@ -1,0 +1,9 @@
+// should break at last statement because overshadowing variable in scope
+proc main() {
+  var x = 10 : int64;
+  {
+    var x = 20 : int64;
+    print (x);
+  }
+  var x = 30 : int64;
+}

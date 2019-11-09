@@ -1,0 +1,17 @@
+var num_fibs = 30 : int64;
+
+proc fib(count : int64) {
+  fib_aux(0, 1, count);
+}
+
+proc fib_aux(j, k, count : int64) {
+  if (count < 1) {
+    return;
+  }
+  print j;
+  return fib_aux(k, j + k, count - 1);
+}
+
+proc main() {
+  fib(num_fibs);
+}

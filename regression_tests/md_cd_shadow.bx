@@ -1,0 +1,8 @@
+// should print 13
+proc main() {
+  var x = 5 : int64;
+  if (x < 10) {
+    var x = 3, y = 10 : int64;
+    print(x + y);
+  }
+}
