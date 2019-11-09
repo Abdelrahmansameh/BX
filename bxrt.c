@@ -17,3 +17,4 @@ void bx_print_bool(int64_t x)
 {
   printf("%s\n", x == 0 ? "false" : "true");
 }
+

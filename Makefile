@@ -31,7 +31,7 @@ tests: $(TARGET)
 	for f in $(wildcard regression_tests/*.bx) ; do \
 	  build/$(TARGET) $$f ; \
 	  $${f%bx}exe > $${f%bx}actual ; \
-	  BX_INTERPRETER $$f > $${f%bx}expected ; \
+	  $(BX_INTERPRETER) $$f > $${f%bx}expected ; \
 	  diff $${f%bx}expected $${f%bx}actual ; \
 	  if test $$? -ne 0 ; then \
 	    echo Test $$f failed ; \
