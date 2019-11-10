@@ -225,6 +225,38 @@ public:
   void visit(rtl::Goto const &go) override {
     append(Asm::jmp(label_translate(go.succ)));
   }
+
+  ///////////////////////////////////////////////////
+  void visit(rtl::NewFrame const &cp) override {
+    append(Asm::pushq(Pseudo{reg::rbp}));
+    append(Asm::movq(Pseudo{reg::rsp}, Pseudo{reg::rbp}));
+    append(Asm::subq(cp.size, Pseudo{reg::rsp}));
+    append(Asm::jmp(label_translate(cp.succ)));
+  }
+
+  void visit(rtl::DelFrame const &cp) override {
+    append(Asm::movq(Pseudo{reg::rbp}, Pseudo{reg::rsp}));
+    append(Asm::pop(Pseudo{reg::rbp}));
+  }
+
+  void visit(rtl::CopyMP const &cp) override {
+    append(Asm::movq(Pseudo{reg::cp.src}, lookup(cp.dest)));
+    append(Asm::jmp(label_translate(cp.succ)));
+  }
+
+  void visit(rtl::CopyPM const &cp) override {
+    append(Asm::movq(lookup(cp.src), Pseudo{reg::rax}));
+    append(Asm::movq(Pseudo{reg::rax}, Pseudo{reg::cp.dest}));
+    append(Asm::jmp(label_translate(cp.succ)));
+  }
+
+ void visit(rtl::LoadParam const &cp) override {
+    append(Asm::movq(lookup(cp.src), Pseudo{reg::rcx}));
+    append(Asm::movq(Pseudo{reg::rcx}, Pseudo{reg::cp.dest}));
+    append(Asm::jmp(label_translate(cp.succ)));
+  }
+
+  ///////////////////////////////////////////////////////
 };
 
 AsmProgram rtl_to_asm(rtl::Program const &prog) {
