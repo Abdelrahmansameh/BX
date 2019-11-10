@@ -119,7 +119,12 @@ public:
     // add an unconditional jump to exit for procedures
     if (cbl->return_ty == Type::UNKNOWN)
       rtl_cbl.add_instr(in_label, Goto::make(rtl_cbl.leave));
-    rtl_cbl.add_instr(rtl_cbl.leave, Return::make(rtl_cbl.output_reg));
+    //Put return value in RDX
+    auto fresh1 = fresh_label();
+    auto fresh2 = fresh_label();
+    rtl_cbl.add_instr(rtl_cbl.leave, CopyPM::make(rtl_cbl.output_reg, CopyPM::Register::RBX, exit));
+    
+    rtl_cbl.add_instr(exit, Return::make());
   }
 
   rtl::Callable &&deliver() { return std::move(rtl_cbl); }

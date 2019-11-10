@@ -77,10 +77,9 @@ struct InstrVisitor {
   VISIT_FUNCTION(Unop);
   VISIT_FUNCTION(Bbranch);
   VISIT_FUNCTION(Ubranch);
-  VISIT_FUNCTION( );
   VISIT_FUNCTION(Call);
   VISIT_FUNCTION(Return);
-
+  VISIT_FUNCTION(Goto);
   VISIT_FUNCTION(NewFrame);  ///////////////////////////////
   VISIT_FUNCTION(DelFrame);  ///////////////////////////////
   VISIT_FUNCTION(LoadParam); ///////////////////////////////
@@ -315,13 +314,12 @@ struct Call : public Instr {
 };
 
 struct Return : public Instr {
-  Pseudo arg;
 
   std::ostream &print(std::ostream &out) const override {
-    return out << "return " << arg;
+    return out << "return ";
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(Return, Pseudo arg) : arg{arg} {}
+  CONSTRUCTOR(Return) {}
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
