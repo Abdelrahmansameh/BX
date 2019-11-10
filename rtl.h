@@ -129,11 +129,12 @@ struct Copy : public Instr {
 };
 
 struct CopyMP : public Instr {
-  enum Register : uint16_t {
+  /*enum Register : uint16_t {
     RBX, R12, R13, R14, R15
-  };
+  };*/
 
-  Register src;
+
+  char const * src;
   Pseudo dest;
   Label succ;
 
@@ -141,26 +142,26 @@ struct CopyMP : public Instr {
     return out << "copy " << src << ", " << dest << "  --> " << succ;
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(CopyMP, Register src, Pseudo dest, Label succ)
+  CONSTRUCTOR(CopyMP, char const * src, Pseudo dest, Label succ)
       : src{src}, dest{dest}, succ{succ} {}
 };
 
 struct CopyPM : public Instr {
-  enum Register : uint16_t {
+  /*enum Register : uint16_t {
     // clang-format off
-    RBX, R12, R13, R14, R15
+    RAX, RBX, R12, R13, R14, R15
     // clang-format on
-  };
+  }; */
 
   Pseudo src;
-  Register dest;
+  char const * dest;
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
     return out << "copy " << src << ", " << dest << "  --> " << succ;
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(CopyPM, Pseudo src, Register dest, Label succ)
+  CONSTRUCTOR(CopyPM, Pseudo src, char const * dest, Label succ)
       : src{src}, dest{dest}, succ{succ} {}
 };
 
@@ -325,12 +326,13 @@ struct Return : public Instr {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct NewFrame : public Instr {
   Label succ;
-
+  int size;
   std::ostream &print(std::ostream &out) const override {
     return out << "newframe  --> " << succ;
   }
   MAKE_VISITABLE
   CONSTRUCTOR(NewFrame, Label succ) : succ{succ} {}
+  void ChangeSize(int size) {this->size = size;};
 };
 
 struct DelFrame : public Instr {

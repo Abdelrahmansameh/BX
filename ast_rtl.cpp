@@ -1,6 +1,7 @@
 #include <stdexcept>
 
 #include "ast_rtl.h"
+#include "amd64.h"
 
 namespace bx {
 
@@ -122,9 +123,9 @@ public:
     //Put return value in RDX
     auto fresh1 = fresh_label();
     auto fresh2 = fresh_label();
-    rtl_cbl.add_instr(rtl_cbl.leave, CopyPM::make(rtl_cbl.output_reg, CopyPM::Register::RBX, exit));
-    
-    rtl_cbl.add_instr(exit, Return::make());
+    rtl_cbl.add_instr(rtl_cbl.leave, CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, fresh1));
+    rtl_cbl.add_instr(fresh1, DelFrame::make(fresh2));
+    rtl_cbl.add_instr(fresh2, Return::make());
   }
 
   rtl::Callable &&deliver() { return std::move(rtl_cbl); }
