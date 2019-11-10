@@ -77,7 +77,7 @@ struct InstrVisitor {
   VISIT_FUNCTION(Unop);
   VISIT_FUNCTION(Bbranch);
   VISIT_FUNCTION(Ubranch);
-  VISIT_FUNCTION( );
+  VISIT_FUNCTION(Goto);
   VISIT_FUNCTION(Call);
   VISIT_FUNCTION(Return);
 
