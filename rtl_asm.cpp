@@ -283,7 +283,8 @@ public:
   ///////////////////////////////////////////////////////
 };
 
-AsmProgram rtl_to_asm(rtl::Program const &prog) {
+std::vector<AsmProgram> rtl_to_asm(rtl::Program const &prog) {
+  std::vector<AsmProgram> p;
   for (auto const &c : prog) {
       InstrCompiler icomp{c.name};
       for (auto const &l : c.schedule) {
@@ -291,8 +292,9 @@ AsmProgram rtl_to_asm(rtl::Program const &prog) {
         //std::unique_ptr<const bx::rtl::Instr> tmp = new bx::rtl::Instr{*c.body.find(l)->second};
         c.body.find(l)->second->accept(icomp);
       }
-      return icomp.finalize();
+      p.push_back(icomp.finalize());
   }
+  return p;
 }
 
 } // namespace bx
