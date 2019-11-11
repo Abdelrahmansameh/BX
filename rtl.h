@@ -14,8 +14,8 @@
 #ifndef CONSTRUCTOR
 #define CONSTRUCTOR(Cls, ...)                                                  \
   template <typename... Args>                                                  \
-  static std::unique_ptr<Cls const> make(Args &&... args) {                    \
-    return std::unique_ptr<Cls>{new Cls(std::forward<Args>(args)...)};         \
+  static Cls* make(Args &&... args) {                    \
+    return new Cls(std::forward<Args>(args)...);         \
   }                                                                            \
                                                                                \
 private:                                                                       \
@@ -42,7 +42,7 @@ std::ostream &operator<<(std::ostream &out, Pseudo const &r);
 constexpr Pseudo discard_pr{-1};
 
 struct Instr;
-using InstrPtr = std::unique_ptr<Instr const>;
+using InstrPtr = Instr*;
 
 struct Move;
 struct Copy; // copy between pseudo
