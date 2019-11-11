@@ -55,9 +55,8 @@ int main(int argc, char *argv[]) {
     std::cout << rtl_file << " written.\n";
 
     auto s_file = file_root + ".s";
-    rtl::Program rtl_prog2;
-    auto asm_prog = rtl_to_asm(rtl_prog2);
-    /*
+
+    /*auto asm_prog = rtl_to_asm(rtl_prog);
 
     std::ofstream s_out;
     s_out.open(s_file);
