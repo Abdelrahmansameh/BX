@@ -89,8 +89,8 @@ public:
   }
 
   void visit(rtl::Copy const &cp) override {
-    append(Asm::movq(lookup(cp.src), Pseudo{reg::rax}));
-    append(Asm::movq(Pseudo{reg::rax}, lookup(cp.dest)));
+    append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
+    append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest)));
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
@@ -250,8 +250,8 @@ public:
   }
 
   void visit(rtl::CopyPM const &cp) override {
-    append(Asm::movq(lookup(cp.src), Pseudo{reg::rax}));
-    append(Asm::movq(Pseudo{reg::rax}, Pseudo{cp.dest}));
+    append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
+    append(Asm::movq(Pseudo{reg::r12}, Pseudo{cp.dest}));
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
