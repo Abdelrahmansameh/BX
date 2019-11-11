@@ -5,6 +5,7 @@
 
 #include "antlr4-runtime.h"
 
+#include "rtl_asm.h"
 #include "ast.h"
 #include "ast_rtl.h"
 #include "rtl.h"
@@ -39,7 +40,7 @@ int main(int argc, char *argv[]) {
 
     auto rtl_file = file_root + ".rtl";
     auto gvars = rtl::getGlobals(prog);
-    auto rtl_prog = rtl::transform(prog);
+    rtl::Program rtl_prog = rtl::transform(prog);
     std::ofstream rtl_out;
     rtl_out.open(rtl_file);
     /*for (auto const &gv : prog.global_vars)
@@ -54,7 +55,9 @@ int main(int argc, char *argv[]) {
     std::cout << rtl_file << " written.\n";
 
     auto s_file = file_root + ".s";
-    auto asm_prog = rtl_to_asm(rtl_prog);
+    rtl::Program rtl_prog2;
+    auto asm_prog = rtl_to_asm(rtl_prog2);
+    /*
 
     std::ofstream s_out;
     s_out.open(s_file);
@@ -71,5 +74,6 @@ int main(int argc, char *argv[]) {
       std::exit(2);
     }
     std::cout << exe_file << " created.\n";
+    */
   }
 }

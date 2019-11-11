@@ -291,8 +291,9 @@ AsmProgram rtl_to_asm(rtl::Program const &prog) {
         //std::unique_ptr<const bx::rtl::Instr> tmp = new bx::rtl::Instr{*c.body.find(l)->second};
         c.body.find(l)->second->accept(icomp);
       }
-      return icomp.finalize();
   }
+  InstrCompiler icomp{"foo"};
+  return icomp.finalize();
 }
 
 } // namespace bx
