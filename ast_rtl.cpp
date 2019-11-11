@@ -158,7 +158,7 @@ public:
     //leave label
     rtl_cbl.leave = fresh_label();
     
-    // process all the statements
+    // Update in_label
     in_label = rtl_cbl.enter;
     
     // Add the new frame first 
@@ -166,10 +166,22 @@ public:
     auto tmpin = in_label;
     in_label = fresh;
 
-    std::cout << "Fresh: "<< fresh << std::endl;
-    std::cout << "TMPInlabel: "<< tmpin << std::endl;
-
-    //Process the rest
+    //Save the callee saved registers O_o
+    char const *  callee_saved[] = {
+        bx::amd64::reg::rbx,
+        bx::amd64::reg::rbp,
+        bx::amd64::reg::r12,
+        bx::amd64::reg::r13,
+        bx::amd64::reg::r14,
+        bx::amd64::reg::r15
+    };
+    std::vector<rtl::Pseudo> saved_locs;
+    for (int i = 0; i < 6; i++){
+      auto ps = fresh_pseudo();
+      saved_locs.push_back(ps);
+      add_sequential([&](auto next) { return CopyMP::make(callee_saved[i], ps, next);});
+    }
+    //Process all the statements
     cbl->body->accept(*this);
 
 
@@ -434,7 +446,7 @@ public:
     }
     int nArgs = static_cast<int>(args.size());
     char const * regargs[] = {
-        bx::amd64::reg::rdi, 
+           
         bx::amd64::reg::rsi,
         bx::amd64::reg::rdx,
         bx::amd64::reg::rcx,

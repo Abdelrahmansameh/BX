@@ -322,7 +322,7 @@ struct NewFrame : public Instr {
   Label succ;
   int size;
   std::ostream &print(std::ostream &out) const override {
-    return out << "newframe  --> " << succ;
+    return out << "newframe " << size << " --> " << succ;
   }
   MAKE_VISITABLE
   CONSTRUCTOR(NewFrame, Label succ, int size) : succ{succ}, size{size} {}
