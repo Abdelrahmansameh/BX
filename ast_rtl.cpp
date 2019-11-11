@@ -16,6 +16,12 @@ int last_label = 0;
 inline rtl::Label fresh_label() { return rtl::Label{last_label++}; }
 
 /**
+* Mapping from global variables to their offsets
+*/
+std::map<std::string, int> global_vars;
+  
+
+/**
  * A common generator for both expressions and statements
  *
  * It could be possible to break this up into multiple generators
@@ -102,30 +108,92 @@ private:
 public:
   RtlGen(source::Program const &source_prog, std::string const &name)
       : source_prog{source_prog}, rtl_cbl{name} {
+
+    // Store the number of pseudos to computer later the number of tmps
+    int pseudoCounter = last_pseudo;
+
+    // Source callable
     auto &cbl = source_prog.callables.at(rtl_cbl.name);
+    
     // input pseudos
     for (auto const &param : cbl->args) {
       Pseudo reg = get_pseudo(param.first);
       rtl_cbl.input_regs.push_back(reg);
     }
+
+    // Retrieve the arguments
+    int nArgs =  static_cast<int>(cbl->args.size());
+    char const * regargs[] = {
+        bx::amd64::reg::rdi, 
+        bx::amd64::reg::rsi,
+        bx::amd64::reg::rdx,
+        bx::amd64::reg::rcx,
+        bx::amd64::reg::r8,
+        bx::amd64::reg::r9};
+    bool stackParams = nArgs > 6;
+    if (!stackParams){
+      for (int i = 0; i < nArgs; i++){
+        add_sequential(
+          [&](auto next) { return CopyMP::make(regargs[i], rtl_cbl.input_regs[i],next); });
+      }
+    }
+    else{
+      for (int i = 0; i < 6; i++){
+        add_sequential(
+          [&](auto next) { return CopyMP::make(regargs[i], rtl_cbl.input_regs[i],next); });
+      }
+      for (int i = 6; i < nArgs; i++ ){
+        add_sequential(
+          [&](auto next) { return LoadParam::make(i -5, rtl_cbl.input_regs[i],next); });
+      }
+    }
+
     // output pseudo
     rtl_cbl.output_reg =
         cbl->return_ty == Type::UNKNOWN ? rtl::discard_pr : fresh_pseudo();
-    // enter and leave labels
+    
+    // enter label
     rtl_cbl.enter = fresh_label();
+    
+    //leave label
     rtl_cbl.leave = fresh_label();
+    
     // process all the statements
     in_label = rtl_cbl.enter;
+    
+    // Add the new frame first 
+    auto fresh = fresh_label();
+    auto tmpin = in_label;
+    in_label = fresh;
+
+    std::cout << "Fresh: "<< fresh << std::endl;
+    std::cout << "TMPInlabel: "<< tmpin << std::endl;
+
+    //Process the rest
     cbl->body->accept(*this);
+
+
     // add an unconditional jump to exit for procedures
     if (cbl->return_ty == Type::UNKNOWN)
       rtl_cbl.add_instr(in_label, Goto::make(rtl_cbl.leave));
+
+
     //Put return value in RDX
     auto fresh1 = fresh_label();
-    auto fresh2 = fresh_label();
     rtl_cbl.add_instr(rtl_cbl.leave, CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, fresh1));
+ 
+
+    // Update the size of NewFrame
+    pseudoCounter -= last_pseudo;
+    rtl_cbl.add_instr(tmpin, NewFrame::make(fresh, pseudoCounter));
+
+
+    // Delframe and return
+    auto fresh2 = fresh_label();
     rtl_cbl.add_instr(fresh1, DelFrame::make(fresh2));
     rtl_cbl.add_instr(fresh2, Return::make());
+
+
   }
 
   rtl::Callable &&deliver() { return std::move(rtl_cbl); }
@@ -160,7 +228,10 @@ public:
     std::string func =
         pr.arg->meta->ty == Type::INT64 ? "bx_print_int" : "bx_print_bool";
     add_sequential([&](auto next) {
-      return Call::make(func, std::vector<Pseudo>{result}, rtl::discard_pr,
+      return CopyPM::make(result, bx::amd64::reg::rdi, next);
+    });
+    add_sequential([&](auto next) {
+      return Call::make(func, 1,
                         next);
     });
   }
@@ -361,12 +432,41 @@ public:
       e->accept(*this);
       args.push_back(result);
     }
+    int nArgs = static_cast<int>(args.size());
+    char const * regargs[] = {
+        bx::amd64::reg::rdi, 
+        bx::amd64::reg::rsi,
+        bx::amd64::reg::rdx,
+        bx::amd64::reg::rcx,
+        bx::amd64::reg::r8,
+        bx::amd64::reg::r9};
+    bool stackParams = nArgs > 6;
+    if (!stackParams){
+      for (int i = 0; i < nArgs; i++){
+        add_sequential(
+          [&](auto next) { return CopyPM::make(args[i], regargs[i], next); });
+      }
+    }
+    else{
+      for (int i = 0; i < 6; i++){
+        add_sequential(
+          [&](auto next) { return CopyPM::make(args[i], regargs[i], next); });
+      }
+      for (int i = 0; i<nArgs-6; i++){
+        add_sequential(
+          [&](auto next) { return Push::make(args[nArgs-i], next);});
+      }
+    }
     result = source_prog.callables.at(ca.func)->return_ty == Type::UNKNOWN
                  ? rtl::discard_pr
                  : fresh_pseudo();
     add_sequential(
-        [&](auto next) { return Call::make(ca.func, args, result, next); });
-  }
+      [&](auto next) { return Call::make(ca.func, nArgs, next); });
+    if (source_prog.callables.at(ca.func)->return_ty != Type::UNKNOWN){
+      add_sequential(
+        [&](auto next) {return CopyMP::make(bx::amd64::reg::rax, result, next);});
+      }
+    }
 };
 
 rtl::Program transform(source::Program const &src_prog) {

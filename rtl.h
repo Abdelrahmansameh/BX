@@ -295,23 +295,17 @@ struct Goto : public Instr {
 
 struct Call : public Instr {
   std::string func;
-  std::vector<Pseudo> args;
-  Pseudo ret;
+  int Nargs;
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
-    out << "call " << func << "(";
-    for (auto it = args.cbegin(); it != args.cend(); it++) {
-      out << *it;
-      if (it + 1 != args.cend())
-        out << ", ";
-    }
-    return out << "), " << ret << "  --> " << succ;
+    out << "call " << func << "(" << Nargs;
+    return out << ")" << "  --> " << succ;
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(Call, std::string func, std::vector<Pseudo> args, Pseudo ret,
+  CONSTRUCTOR(Call, std::string func, int Nargs,
               Label succ)
-      : func{func}, args{args}, ret{ret}, succ{succ} {}
+      : func{func}, Nargs(Nargs), succ{succ} {}
 };
 
 struct Return : public Instr {
@@ -331,8 +325,7 @@ struct NewFrame : public Instr {
     return out << "newframe  --> " << succ;
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(NewFrame, Label succ) : succ{succ} {}
-  void ChangeSize(int size) {this->size = size;};
+  CONSTRUCTOR(NewFrame, Label succ, int size) : succ{succ}, size{size} {}
 };
 
 struct DelFrame : public Instr {
