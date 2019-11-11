@@ -5,13 +5,15 @@
 
 #include "antlr4-runtime.h"
 
-#include "rtl_asm.h"
 #include "ast.h"
 #include "ast_rtl.h"
 #include "rtl.h"
 #include "type_check.h"
+#include "amd64.h"
+#include "rtl_asm.h"
 
 using namespace bx;
+
 
 int main(int argc, char *argv[]) {
   const std::string rt_flags = "-L build -lbxrt -Wl,-rpath," +
@@ -56,12 +58,22 @@ int main(int argc, char *argv[]) {
 
     auto s_file = file_root + ".s";
 
-    /*auto asm_prog = rtl_to_asm(rtl_prog);
-
+    auto asm_prog = rtl_to_asm(rtl_prog);
     std::ofstream s_out;
     s_out.open(s_file);
-    for (auto const &l : asm_prog)
-      s_out << *l;
+    
+    for (auto const &glb : gvars){
+      s_out << "\t.globl "<< glb.first << std::endl;
+      s_out << "\t.section .data\n";
+      s_out << "\t.align 8\n";
+      s_out << glb.first << ":\n";
+      s_out << "\t.quad " << glb.second << "\n";
+    }
+    for (auto const &fun : asm_prog){
+      for (auto const &l : fun){
+        s_out << *l;
+      }
+    }
     s_out.close();
     std::cout << s_file << " written.\n";
 
@@ -73,6 +85,5 @@ int main(int argc, char *argv[]) {
       std::exit(2);
     }
     std::cout << exe_file << " created.\n";
-    */
   }
 }

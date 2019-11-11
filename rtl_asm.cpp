@@ -272,12 +272,14 @@ public:
     }
 
   void visit(rtl::Load const &cp) override {
-    append(Asm::movq(cp.src, Pseudo{reg::rip}, lookup(cp.dest))); 
+    append(Asm::movq(cp.src, Pseudo{reg::rip}, Pseudo{reg::r12})); 
+    append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest))); 
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
   void visit(rtl::Store const &cp) override {
-    append(Asm::movq(lookup(cp.src), cp.dest, Pseudo{reg::rip}));
+    append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
+    append(Asm::movq(Pseudo{reg::r12}, cp.dest, Pseudo{reg::rip})); 
     append(Asm::jmp(label_translate(cp.succ)));
   }
   ///////////////////////////////////////////////////////
@@ -292,15 +294,9 @@ std::vector<AsmProgram> rtl_to_asm(rtl::Program const &prog) {
         //std::unique_ptr<const bx::rtl::Instr> tmp = new bx::rtl::Instr{*c.body.find(l)->second};
         c.body.find(l)->second->accept(icomp);
       }
-<<<<<<< HEAD
-  }
-  InstrCompiler icomp{"foo"};
-  return icomp.finalize();
-=======
       p.push_back(icomp.finalize());
   }
   return p;
->>>>>>> 5c7a8637bad9582f5a2dc39dab763662091193dd
 }
 
 } // namespace bx
