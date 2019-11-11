@@ -11,6 +11,8 @@ set(bx-SRC
   ${PROJECT_SOURCE_DIR}/type_check.cpp
   ${PROJECT_SOURCE_DIR}/rtl.cpp
   ${PROJECT_SOURCE_DIR}/ast_rtl.cpp
+  ${PROJECT_SOURCE_DIR}/amd64.cpp
+  ${PROJECT_SOURCE_DIR}/rtl_asm.cpp
   ${PROJECT_SOURCE_DIR}/main.cpp
 )
 set(bx-RUNTIME

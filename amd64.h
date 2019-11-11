@@ -99,15 +99,28 @@ public:
     return std::unique_ptr<Asm>(new Asm{{}, {}, {}, label + ":"});
   }
 
-#define ARITH_BINOP(mnemonic)                                                  \
-  static ptr mnemonic##q(int64_t imm, Pseudo const &dest) {                    \
-    std::string repr = "\t" #mnemonic "q $" + std::to_string(imm) + ", `d0";   \
-    return std::unique_ptr<Asm>(new Asm{{}, {dest}, {}, repr});                \
-  }                                                                            \
-  static ptr mnemonic##q(Pseudo const &src, Pseudo const &dest) {              \
-    return std::unique_ptr<Asm>(                                               \
-        new Asm{{src}, {dest}, {}, "\t" #mnemonic "q `s0, `d0"});              \
-  }
+#define ARITH_BINOP(mnemonic)                                                     \
+  static ptr mnemonic##q(int64_t imm, Pseudo const &dest) {                       \
+    std::string repr = "\t" #mnemonic "q $" + std::to_string(imm) + ", `d0";      \
+    return std::unique_ptr<Asm>(new Asm{{}, {dest}, {}, repr});                   \
+  }                                                                               \
+  static ptr mnemonic##q(Pseudo const &src, Pseudo const &dest) {                 \
+    return std::unique_ptr<Asm>(                                                  \
+        new Asm{{src}, {dest}, {}, "\t" #mnemonic "q `s0, `d0"});                 \
+  }                                                                               \
+  static ptr mnemonic##q(int64_t i, Pseudo const &src, Pseudo const &dest) {      \
+    std::string repr = "\t" #mnemonic "q " + std::to_string(i) + "(`s0), `d0";    \
+    return std::unique_ptr<Asm>(new Asm{{src}, {dest}, {}, repr});                \
+  }                                                                               \
+  static ptr mnemonic##q(std::string gv, Pseudo const &src, Pseudo const &dest) { \
+    std::string repr = "\t" #mnemonic "q " + gv + "(`s0), `d0";                   \
+    return std::unique_ptr<Asm>(new Asm{{src}, {dest}, {}, repr});                \
+  }                                                                               \
+  static ptr mnemonic##q(Pseudo const &src, std::string gv, Pseudo const &dest) { \
+    std::string repr = "\t" #mnemonic "q `s0, " + gv + "(`d0)";                   \
+    return std::unique_ptr<Asm>(new Asm{{src}, {dest}, {}, repr});                \
+  }  
+
   ARITH_BINOP(mov)
   ARITH_BINOP(movabs)
   ARITH_BINOP(add)
