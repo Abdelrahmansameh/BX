@@ -38,12 +38,16 @@ int main(int argc, char *argv[]) {
     std::cout << p_file << " written.\n";
 
     auto rtl_file = file_root + ".rtl";
+    auto gvars = rtl::getGlobals(prog);
     auto rtl_prog = rtl::transform(prog);
     std::ofstream rtl_out;
     rtl_out.open(rtl_file);
-    for (auto const &gv : prog.global_vars)
+    /*for (auto const &gv : prog.global_vars)
       rtl_out << "GLOBAL " << gv.first << " = " << *(gv.second->init) << " : "
-              << gv.second->ty << "\n\n";
+              << gv.second->ty << "\n\n";*/
+    for (auto const &glb : gvars){
+      rtl_out << glb.first << " = " << glb.second << std::endl;
+    }
     for (auto const &rtl_cbl : rtl_prog)
       rtl_out << rtl_cbl << '\n';
     rtl_out.close();

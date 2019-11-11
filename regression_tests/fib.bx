@@ -1,5 +1,4 @@
 var num_fibs = 30 : int64;
-
 proc fib(count : int64) {
   fib_aux(0, 1, count);
 }

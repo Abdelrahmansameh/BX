@@ -390,7 +390,7 @@ using LabelMap = std::unordered_map<Label, V, LabelHash, LabelEq>;
 
 struct Callable {
   std::string name;
-  Label enter, leave;
+  Label enter , leave;
   std::vector<Pseudo> input_regs;
   Pseudo output_reg;
   LabelMap<InstrPtr> body;
@@ -407,6 +407,7 @@ struct Callable {
   }
 };
 std::ostream &operator<<(std::ostream &out, Callable const &cbl);
+
 
 using Program = std::vector<Callable>;
 

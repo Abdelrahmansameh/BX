@@ -16,10 +16,10 @@ int last_label = 0;
 inline rtl::Label fresh_label() { return rtl::Label{last_label++}; }
 
 /**
-* Mapping from global variables to their offsets
+* List of global variable initializations
 */
-std::map<std::string, int> global_vars;
-  
+std::map<std::string, int > global_var_init;
+
 
 /**
  * A common generator for both expressions and statements
@@ -58,10 +58,23 @@ private:
   std::unordered_map<std::string, rtl::Pseudo> var_table;
 
   /**
+  * List of global variables
+  */
+  std::unordered_map<std::string, rtl::Pseudo> gvar_table;
+
+  /**
    * Check if the variable is mapped to a pseudo; if not, create a fresh such
    * mapping. Return the pseudo in either case.
    */
   rtl::Pseudo get_pseudo(std::string const &v) {
+    if (global_var_init.find(v) !=  global_var_init.end()){
+      if (gvar_table.find(v) == gvar_table.end()){
+        auto ps = fresh_pseudo();
+        add_sequential([&](auto next) { return Load::make(v, 0, ps, next); });
+        gvar_table.insert_or_assign(v, ps);
+      }
+      return gvar_table.at(v);
+    }
     if (var_table.find(v) == var_table.end())
       var_table.insert_or_assign(v, fresh_pseudo());
     return var_table.at(v);
@@ -121,6 +134,41 @@ public:
       rtl_cbl.input_regs.push_back(reg);
     }
 
+    
+    // output pseudo
+    rtl_cbl.output_reg =
+        cbl->return_ty == Type::UNKNOWN ? rtl::discard_pr : fresh_pseudo();
+    
+    // enter label
+    rtl_cbl.enter = fresh_label();
+    
+    //leave label
+    rtl_cbl.leave = fresh_label();
+
+    // Update in_label
+    in_label = rtl_cbl.enter;
+    
+    // Placehold the new frame first 
+    auto fresh = fresh_label();
+    auto tmpin = in_label;
+    in_label = fresh;
+
+    //Save the callee saved registers O_o
+    char const *  callee_saved[] = {
+        bx::amd64::reg::rbx,
+        bx::amd64::reg::rbp,
+        bx::amd64::reg::r12,
+        bx::amd64::reg::r13,
+        bx::amd64::reg::r14,
+        bx::amd64::reg::r15
+    };
+    std::vector<rtl::Pseudo> saved_locs;
+    for (int i = 0; i < 6; i++){
+      auto ps = fresh_pseudo();
+      saved_locs.push_back(ps);
+      add_sequential([&](auto next) { return CopyMP::make(callee_saved[i], ps, next);});
+    }
+
     // Retrieve the arguments
     int nArgs =  static_cast<int>(cbl->args.size());
     char const * regargs[] = {
@@ -147,65 +195,32 @@ public:
           [&](auto next) { return LoadParam::make(i -5, rtl_cbl.input_regs[i],next); });
       }
     }
-
-    // output pseudo
-    rtl_cbl.output_reg =
-        cbl->return_ty == Type::UNKNOWN ? rtl::discard_pr : fresh_pseudo();
-    
-    // enter label
-    rtl_cbl.enter = fresh_label();
-    
-    //leave label
-    rtl_cbl.leave = fresh_label();
-    
-    // Update in_label
-    in_label = rtl_cbl.enter;
-    
-    // Add the new frame first 
-    auto fresh = fresh_label();
-    auto tmpin = in_label;
-    in_label = fresh;
-
-    //Save the callee saved registers O_o
-    char const *  callee_saved[] = {
-        bx::amd64::reg::rbx,
-        bx::amd64::reg::rbp,
-        bx::amd64::reg::r12,
-        bx::amd64::reg::r13,
-        bx::amd64::reg::r14,
-        bx::amd64::reg::r15
-    };
-    std::vector<rtl::Pseudo> saved_locs;
-    for (int i = 0; i < 6; i++){
-      auto ps = fresh_pseudo();
-      saved_locs.push_back(ps);
-      add_sequential([&](auto next) { return CopyMP::make(callee_saved[i], ps, next);});
-    }
     //Process all the statements
     cbl->body->accept(*this);
 
+    //Put the return value in rax
+    if (cbl->return_ty != Type::UNKNOWN){
+      add_sequential([&](auto next) { return CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, next);});
+    }
 
-    // add an unconditional jump to exit for procedures
-    if (cbl->return_ty == Type::UNKNOWN)
-      rtl_cbl.add_instr(in_label, Goto::make(rtl_cbl.leave));
-
-
-    //Put return value in RDX
-    auto fresh1 = fresh_label();
-    rtl_cbl.add_instr(rtl_cbl.leave, CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, fresh1));
- 
-
+    rtl_cbl.add_instr(rtl_cbl.leave, Goto::make(in_label));    
+    // Restore the calle saved registers
+    for (int i = 0; i < 6; i++){
+      add_sequential([&](auto next) { return CopyPM::make(saved_locs[i], callee_saved[i],  next);});
+    }
     // Update the size of NewFrame
     pseudoCounter -= last_pseudo;
     rtl_cbl.add_instr(tmpin, NewFrame::make(fresh, pseudoCounter));
 
-
-    // Delframe and return
-    auto fresh2 = fresh_label();
-    rtl_cbl.add_instr(fresh1, DelFrame::make(fresh2));
-    rtl_cbl.add_instr(fresh2, Return::make());
-
-
+    // Insert a Delframe
+    //rtl_cbl.add_instr(in_label, DelFrame::make(rtl_cbl.leave));
+    add_sequential([&](auto next) { return DelFrame::make(next);});    
+    
+    // Return
+    //rtl_cbl.add_instr(rtl_cbl.leave, Return::make());
+    add_sequential([&](auto next) {       
+      (void)next; // suppress unused warning
+      return Return::make();});
   }
 
   rtl::Callable &&deliver() { return std::move(rtl_cbl); }
@@ -223,8 +238,16 @@ public:
     mv.right->accept(*this);
     if (mv.right->meta->ty == Type::BOOL)
       intify();
-    add_sequential(
+    if (gvar_table.find(mv.left) == gvar_table.end()){
+      add_sequential(
         [&](auto next) { return Copy::make(result, source_reg, next); });
+    }
+    else{
+      add_sequential(
+        [&](auto next) { return Store::make(result, mv.left, 0, next );} );
+      add_sequential(
+        [&](auto next) { return Copy::make(result, source_reg, next); });
+    }
   }
 
   void visit(source::Eval const &ev) override {
@@ -286,10 +309,13 @@ public:
       ret.arg->accept(*this);
       if (ret.arg->meta->ty == Type::BOOL)
         intify();
-      if (rtl_cbl.output_reg != rtl::discard_pr)
+      if (rtl_cbl.output_reg != rtl::discard_pr){
         add_sequential([&](auto next) {
           return Copy::make(result, rtl_cbl.output_reg, next);
         });
+        //Put the return value in rax
+        add_sequential([&](auto next) { return CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, next);});    
+      }
     }
     add_sequential([&](auto next) {
       (void)next; // suppress unused warning
@@ -446,7 +472,7 @@ public:
     }
     int nArgs = static_cast<int>(args.size());
     char const * regargs[] = {
-           
+        bx::amd64::reg::rdi,
         bx::amd64::reg::rsi,
         bx::amd64::reg::rdx,
         bx::amd64::reg::rcx,
@@ -481,6 +507,19 @@ public:
     }
 };
 
+std::map<std::string, int> getGlobals(source::Program const &src_prog){
+  for (auto &glb : src_prog.global_vars) {
+    int* init = glb.second->init->getArg();
+    if (init == NULL){
+      std::cout << "Bad variable initialization for " << glb.first << std::endl;
+    }
+    else{
+      global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
+    }
+  }
+  return global_var_init;
+}
+
 rtl::Program transform(source::Program const &src_prog) {
   rtl::Program rtl_prog;
   for (auto const &cbl : src_prog.callables) {
@@ -488,6 +527,7 @@ rtl::Program transform(source::Program const &src_prog) {
     rtl_prog.push_back(gen.deliver());
   }
   return rtl_prog;
+  //return std::make_pair(rtl_prog, global_var_init);
 }
 
 } // namespace rtl
