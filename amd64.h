@@ -52,8 +52,8 @@ struct Pseudo {
 private:
   static int __last_pseudo_id;
 };
-
 std::ostream &operator<<(std::ostream &out, Pseudo const &p);
+
 
 // Assembly
 

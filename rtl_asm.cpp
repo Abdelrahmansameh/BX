@@ -222,6 +222,7 @@ public:
     /*Pseudo arg = lookup(ret.arg);
     append(Asm::movq(arg, Pseudo{reg::rax}));
     append(Asm::jmp(exit_label)); */
+    (void)ret;
     append(Asm::ret());
   }
 
@@ -238,6 +239,7 @@ public:
   }
 
   void visit(rtl::DelFrame const &cp) override {
+    (void)cp;
     append(Asm::movq(Pseudo{reg::rbp}, Pseudo{reg::rsp}));
     append(Asm::popq(Pseudo{reg::rbp}));
   }

@@ -53,7 +53,6 @@ int main(int argc, char *argv[]) {
     rtl_out.close();
     std::cout << rtl_file << " written.\n";
 
-/*
     auto s_file = file_root + ".s";
     auto asm_prog = rtl_to_asm(rtl_prog);
 
@@ -72,5 +71,5 @@ int main(int argc, char *argv[]) {
       std::exit(2);
     }
     std::cout << exe_file << " created.\n";
- */  }
+  }
 }
