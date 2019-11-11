@@ -255,7 +255,7 @@ public:
 
  void visit(rtl::LoadParam const &cp) override {
     append(Asm::movq(cp.source+8, Pseudo{reg::rbp}, Pseudo{reg::rcx}));          ///////////////////????????????????????????
-    append(Asm::movq(Pseudo{reg::rcx}, Pseudo{cp.dest})); 
+    append(Asm::movq(Pseudo{reg::rcx}, lookup(cp.dest))); 
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
@@ -275,7 +275,7 @@ public:
   }
 
   void visit(rtl::Store const &cp) override {
-    append(Asm::movq(Pseudo{cp.src}, cp.dest, Pseudo{reg::rip}));
+    append(Asm::movq(lookup(cp.src), cp.dest, Pseudo{reg::rip}));
     append(Asm::jmp(label_translate(cp.succ)));
   }
   ///////////////////////////////////////////////////////
@@ -291,7 +291,6 @@ AsmProgram rtl_to_asm(rtl::Program const &prog) {
       }
       return icomp.finalize();
   }
-  
 }
 
 } // namespace bx
