@@ -190,7 +190,7 @@ public:
         add_sequential(
           [&](auto next) { return CopyMP::make(regargs[i], rtl_cbl.input_regs[i],next); });
       }
-      for (int i = 6; i < nArgs; i++ ){
+      for (int i = 6; i < nArgs +1 ; i++ ){
         add_sequential(
           [&](auto next) { return LoadParam::make(i -5, rtl_cbl.input_regs[i],next); });
       }
@@ -490,7 +490,7 @@ public:
         add_sequential(
           [&](auto next) { return CopyPM::make(args[i], regargs[i], next); });
       }
-      for (int i = 0; i<nArgs-6; i++){
+      for (int i = 0; i<nArgs-5; i++){
         add_sequential(
           [&](auto next) { return Push::make(args[nArgs-i], next);});
       }
