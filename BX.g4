@@ -35,14 +35,10 @@ ifElse: 'if' '(' expr ')' block ('else' (ifElse | block))?;
 block: '{' stmt* '}';
 
 expr: ID '(' (expr (',' expr)*)? ')'                  # call
-    | 'alloc' type '[' expr ']'                       # allocat
-    | 'null'                                          # allocat1
-    | '&' expr                                        # allocat2
+    | ('alloc' type '[' expr ']' | 'null' | '&' expr) # alloc
     | ID                                              # ID
-    | '*'expr                                         # a
-    | expr '[' expr ']'                               # b
-    | expr '.' ID                                     # c
-    | expr '->' ID 			                          # assigne
+    | '*'expr                                         # deref
+    | expr '[' expr ']'                               # list
     | NUM                                             # number
     | BOOL                                            # bool
     | op = ('~' | '-' | '!') expr                     # unop

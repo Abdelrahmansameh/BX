@@ -1,0 +1,9 @@
+// should print 4
+proc main() {
+  var x = true : bool;
+  if (x) {
+    print 7;
+  } else {
+    print 4;
+  }
+}
