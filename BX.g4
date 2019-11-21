@@ -1,19 +1,24 @@
 grammar BX;
 
-program: (globalVar | proc | func)*;
+program: (globalVar | proc | func | type_abbrev)*;
+
+type_abbrev: 'type' ID '=' type ';';
+
+type: 'int64' | 'bool' | type '*' | type '[' NUM ']' | struct_type;
+struct_type: 'struct' '{' (struct_field (',' struct_field)*','?)? '}';
+struct_field: ID ':' type;
 
 globalVar:
         'var' globalVarInit (',' globalVarInit)* ':' type ';';
 globalVarInit: ID '=' (NUM | BOOL);
 
-proc: 'proc' ID '(' (param (',' param)*)? ')' block;
-func: 'fun' ID '(' (param (',' param)*)? ')' ':' type block;
+func: 'fun' ID '(' parameter_groups? ')' ':' type block; 
+proc: 'proc' ID '(' parameter_groups? ')' block;
 
-type: 'int64' | 'bool';
-
+parameter_groups: param (',' param)?;
 param: ID (',' ID)* ':' type;
 
-stmt: ID '=' expr ';'            # assign
+stmt: expr '=' expr ';'          # assign
     | expr ';'                   # eval
     | varDecl                    # declare
     | 'print' expr ';'           # print
@@ -29,22 +34,30 @@ ifElse: 'if' '(' expr ')' block ('else' (ifElse | block))?;
 
 block: '{' stmt* '}';
 
-expr: ID                                       # variable
-    | ID '(' (expr (',' expr)*)? ')'           # call
-    | NUM                                      # number
-    | BOOL                                     # bool
-    | op = ('~' | '-' | '!') expr              # unop
-    | expr op = ('*' | '/' | '%') expr         # multiplicative
-    | expr op = ('+' | '-') expr               # additive
-    | expr op = ('<<' | '>>') expr             # shift
-    | expr op = ('<' | '<=' | '>' | '>=') expr # inequation
-    | expr op = ('==' | '!=') expr             # equation
-    | expr '&' expr                            # bitAnd
-    | expr '^' expr                            # bitXor
-    | expr '|' expr                            # bitOr
-    | expr '&&' expr                           # logAnd
-    | expr '||' expr                           # logOr
-    | '(' expr ')'                             # parens;
+expr: ID '(' (expr (',' expr)*)? ')'                  # call
+    | 'alloc' type '[' expr ']'                       # allocat
+    | 'null'                                          # allocat1
+    | '&' expr                                        # allocat2
+    | ID                                              # ID
+    | '*'expr                                         # a
+    | expr '[' expr ']'                               # b
+    | expr '.' ID                                     # c
+    | expr '->' ID 			                          # assigne
+    | NUM                                             # number
+    | BOOL                                            # bool
+    | op = ('~' | '-' | '!') expr                     # unop
+    | expr op = ('*' | '/' | '%') expr                # multiplicative
+    | expr op = ('+' | '-') expr                      # additive
+    | expr op = ('<<' | '>>') expr                    # shift
+    | expr op = ('<' | '<=' | '>' | '>=') expr        # inequation
+    | expr op = ('==' | '!=') expr                    # equation
+    | expr '&' expr                                   # bitAnd
+    | expr '^' expr                                   # bitXor
+    | expr '|' expr                                   # bitOr
+    | expr '&&' expr                                  # logAnd
+    | expr '||' expr                                  # logOr
+    | '(' expr ')'                                    # parens;
+
 
 BOOL: 'true' | 'false';
 ID: [A-Za-z_][A-Za-z0-9_]*;
