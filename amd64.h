@@ -122,6 +122,7 @@ public:
   }  
 
   ARITH_BINOP(mov)
+  ARITH_BINOP(lea)
   ARITH_BINOP(movabs)
   ARITH_BINOP(add)
   ARITH_BINOP(sub)
@@ -204,6 +205,11 @@ public:
   static ptr call(Label const &func) {
     return std::unique_ptr<Asm>(
         new Asm{{}, {Pseudo{reg::rax}}, {}, "\tcall " + func});
+  }
+
+  static ptr call_q(Label const &func) {
+    return std::unique_ptr<Asm>(
+        new Asm{{}, {Pseudo{reg::rax}}, {}, "\tcallq " + func});
   }
 
   static ptr ret() {
