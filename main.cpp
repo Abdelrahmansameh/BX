@@ -16,7 +16,6 @@ using namespace bx;
 
 
 int main(int argc, char *argv[]) {
-  /*
   const std::string rt_flags = "-L build -lbxrt -Wl,-rpath," +
                                std::filesystem::current_path().string() +
                                "/build/";
@@ -32,6 +31,7 @@ int main(int argc, char *argv[]) {
     auto file_root = bx_file.substr(0, bx_file.size() - 3);
 
     auto prog = source::read_program(bx_file);
+    /*
     check::type_check(prog);
     std::cout << bx_file << " parsed and type checked.\n";
     auto p_file = file_root + ".parsed";
@@ -86,6 +86,7 @@ int main(int argc, char *argv[]) {
       std::exit(2);
     }
     std::cout << exe_file << " created.\n";
-  }*/
+  */
+  }
   return 0;
 }

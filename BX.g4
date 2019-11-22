@@ -39,9 +39,9 @@ ifElse: 'if' '(' expr ')' block ('else' (ifElse | block))?;
 block: '{' stmt* '}';
 
 expr: ID '(' (expr (',' expr)*)? ')'                  # call
-    | ('alloc' type '[' expr ']'                      # alloc
+    | 'alloc' type '[' expr ']'                       # alloc
     | 'null'                                          # null
-    | '&' expr)                                       # address
+    | '&' expr                                        # address
     | ID                                              # ID
     | '*'expr                                         # deref
     | expr '[' expr ']'                               # listelement

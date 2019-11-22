@@ -191,13 +191,44 @@ struct Call : public Expr {
 
 struct Alloc : public Expr {
   ExprPtr size;
+  Type* typ; 
   MAKE_PRINTABLE
   MAKE_VISITABLE
   FORBID_COPY(Alloc)
+  CONSTRUCTOR(Alloc, ExprPtr size, Type* typ ): size(std::move(size)), typ(typ) {}
+};
+
+struct Null : public Expr{
+  MAKE_PRINTABLE
+  MAKE_VISITABLE
+  FORBID_COPY(Null)
+  CONSTRUCTOR(Null) {};
+};
+
+struct Address : public Expr{
+  ExprPtr src;
+  MAKE_PRINTABLE
+  MAKE_VISITABLE
+  FORBID_COPY(Address)
+  CONSTRUCTOR(Address, ExprPtr src): src(std::move(src)) {}
+};
+
+struct ListElem : public Expr{
+  ExprPtr lst;
+  ExprPtr idx;
+  MAKE_PRINTABLE
+  MAKE_VISITABLE
+  FORBID_COPY(ListElem)
+  CONSTRUCTOR(ListElem, ExprPtr lst, ExprPtr idx): lst(std::move(lst)),
+             idx(std::move(idx)) {}
 };
 
 struct Deref : public Expr{
-  ExprPtr Pointer; 
+  ExprPtr ptr;
+  MAKE_PRINTABLE
+  MAKE_VISITABLE
+  FORBID_COPY(Deref)
+  CONSTRUCTOR(Deref, ExprPtr ptr) : ptr(std::move(ptr)) {} 
 };
 
 #undef MAKE_VISITABLE
@@ -247,13 +278,13 @@ struct Print : public Stmt {
 };
 
 struct Assign : public Stmt {
-  std::string left;
+  ExprPtr left;
   ExprPtr right;
   MAKE_PRINTABLE
   MAKE_VISITABLE
   FORBID_COPY(Assign)
-  CONSTRUCTOR(Assign, std::string const &left, ExprPtr right)
-      : left{left}, right{std::move(right)} {}
+  CONSTRUCTOR(Assign, ExprPtr left, ExprPtr right)
+      : left{std::move(left)}, right{std::move(right)} {}
 };
 
 struct Eval : public Stmt {
@@ -322,7 +353,7 @@ DECLARE_HEAP_STRUCT(Callable)
 DECLARE_HEAP_STRUCT(GlobalVar)
 
 struct Callable : public ASTNode {
-  using Params = std::vector<std::pair<std::string, Type>>;
+  using Params = std::vector<std::pair<std::string, Type*>>;
   std::string name;
   Params args;
   BlockPtr body;
