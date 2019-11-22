@@ -1,0 +1,14 @@
+proc swap(x, y : int64) {
+  var z = &x, w = &y : int64*;
+  var c = z : int64;
+  z = w;
+  w = c;
+  x = *z;
+  y = *w;
+  print(x);
+  print(y);
+}
+
+proc main() {
+  swap(100,200);
+}
