@@ -4,7 +4,11 @@ program: (globalVar | proc | func | type_abbrev)*;
 
 type_abbrev: 'type' ID '=' type ';';
 
-type: 'int64' | 'bool' | type '*' | type '[' NUM ']' | struct_type;
+type: 'int64'           #inttype
+    | 'bool'            #booltype
+    | type '*'          #pointertype
+    | type '[' NUM ']'  #listtype
+    | struct_type       #structtype;
 struct_type: 'struct' '{' (struct_field (',' struct_field)*','?)? '}';
 struct_field: ID ':' type;
 

@@ -29,14 +29,39 @@ namespace bx {
 // Source AST
 
 namespace source {
-
+////////////////////////////////////////////////////////////////////////////////
 // Types
-enum class Type : int8_t { INT64 = 0, BOOL = 1, UNKNOWN = -1 };
+//enum class Type : int8_t { INT64 = 0, BOOL = 1, UNKNOWN = -1 };
 
-inline std::ostream &operator<<(std::ostream &out, Type const &ty) {
-  return out << (ty == Type::BOOL ? "bool"
-                                  : ty == Type::INT64 ? "int64" : "<unknown>");
-}
+struct Type{
+  virtual ~Type() = default;
+};
+
+struct INT64: Type{
+  INT64(){};
+};
+
+struct BOOL: Type{
+  BOOL(){};
+};
+
+struct UNKNOWN : Type{
+  UNKNOWN(){};
+};
+
+struct POINTER: Type{
+  Type* typ;
+  POINTER(Type* typ): typ(typ) {} 
+};
+
+struct LIST: Type{
+  Type* typ;
+  int length;
+  LIST(Type* typ, int length): typ(typ), length(length) {}
+};
+
+std::ostream &operator<<(std::ostream &out, Type const &ty);
+
 
 // clang-format off
 enum class Binop : int8_t {
@@ -71,6 +96,12 @@ DECLARE_HEAP_STRUCT(BoolConstant)
 DECLARE_HEAP_STRUCT(UnopApp)
 DECLARE_HEAP_STRUCT(BinopApp)
 DECLARE_HEAP_STRUCT(Call)
+DECLARE_HEAP_STRUCT(Alloc)
+DECLARE_HEAP_STRUCT(Null)
+DECLARE_HEAP_STRUCT(Address)
+//Assignables
+DECLARE_HEAP_STRUCT(ListElem)
+DECLARE_HEAP_STRUCT(Deref)
 
 struct ExprVisitor {
 #define VISITOR(Cls)                                                           \
@@ -82,14 +113,19 @@ struct ExprVisitor {
   VISITOR(UnopApp)
   VISITOR(BinopApp)
   VISITOR(Call)
+  VISITOR(Alloc)
+  VISITOR(Null)
+  VISITOR(Address)
+  VISITOR(ListElem)
+  VISITOR(Deref)
 #undef VISITOR
 };
 
 struct Expr : public ASTNode {
   struct Meta {
-    Type ty;
+    Type* ty;
   };
-  std::unique_ptr<Meta> meta{new Meta{Type::UNKNOWN}};
+  std::unique_ptr<Meta> meta{new Meta{new UNKNOWN()}};
   virtual int binding_priority() const { return INT_MAX; }
   virtual void accept(ExprVisitor &vis) const = 0;
   virtual int* getArg() const { return NULL;}
@@ -111,7 +147,6 @@ struct IntConstant : public Expr {
   MAKE_VISITABLE
   CONSTRUCTOR(IntConstant, int64_t value) : value(value) {}
   int* getArg() const override { return new int(value);}
-
 };
 
 struct BoolConstant : public Expr {
@@ -153,7 +188,20 @@ struct Call : public Expr {
   CONSTRUCTOR(Call, std::string const &func, std::vector<ExprPtr> &args)
       : func(func), args(std::move(args)) {}
 };
+
+struct Alloc : public Expr {
+  ExprPtr size;
+  MAKE_PRINTABLE
+  MAKE_VISITABLE
+  FORBID_COPY(Alloc)
+};
+
+struct Deref : public Expr{
+  ExprPtr Pointer; 
+};
+
 #undef MAKE_VISITABLE
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Statements
@@ -249,12 +297,12 @@ struct While : public Stmt {
 
 struct Declare : public Stmt {
   std::string var;
-  const Type ty;
+  const Type* ty;
   ExprPtr init;
   MAKE_PRINTABLE
   MAKE_VISITABLE
   FORBID_COPY(Declare)
-  CONSTRUCTOR(Declare, std::string const &var, Type ty, ExprPtr init)
+  CONSTRUCTOR(Declare, std::string const &var, Type* ty, ExprPtr init)
       : var(var), ty(ty), init{std::move(init)} {}
 };
 
@@ -278,21 +326,21 @@ struct Callable : public ASTNode {
   std::string name;
   Params args;
   BlockPtr body;
-  Type return_ty; // return_ty == Type::UNKNOWN for procedures
+  Type* return_ty; // return_ty == Type::UNKNOWN for procedures
   MAKE_PRINTABLE
   FORBID_COPY(Callable)
   CONSTRUCTOR(Callable, std::string const &name, Params const &args,
-              BlockPtr body, Type return_ty = Type::UNKNOWN)
+              BlockPtr body, Type* return_ty)
       : name{name}, args{args}, body{std::move(body)}, return_ty{return_ty} {}
 };
 
 struct GlobalVar : public ASTNode {
   std::string name;
-  const Type ty;
+  const Type* ty;
   ExprPtr init;
   MAKE_PRINTABLE
   FORBID_COPY(GlobalVar)
-  CONSTRUCTOR(GlobalVar, std::string const &name, Type ty, ExprPtr init)
+  CONSTRUCTOR(GlobalVar, std::string const &name, Type* ty, ExprPtr init)
       : name{name}, ty{ty}, init{std::move(init)} {}
 };
 #undef MAKE_PRINTABLE

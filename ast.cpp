@@ -194,12 +194,12 @@ std::ostream &Return::print(std::ostream &out) const {
 }
 
 std::ostream &Callable::print(std::ostream &out) const {
-  out << (return_ty == Type::UNKNOWN ? "proc " : "fun ");
+  out << ( dynamic_cast<UNKNOWN * const >(return_ty) ? "proc " : "fun ");
   out << name << '(';
   for (auto const &p : args)
     out << p.first << " : " << p.second << ", ";
   out << ") ";
-  if (return_ty != Type::UNKNOWN)
+  if ( dynamic_cast<UNKNOWN * const >(return_ty) == NULL)
     out << " : " << return_ty << ' ';
   return out << *body;
 }
@@ -258,7 +258,7 @@ private:
     std::vector<GlobalVarPtr> vars;
     for (auto *gviCtx : ctx->globalVarInit()) {
       std::string name = gviCtx->ID()->getText();
-      ExprPtr init = ty == Type::INT64 ? read_num(gviCtx->NUM())
+      ExprPtr init = dynamic_cast<INT64 * const >(ty) ? read_num(gviCtx->NUM())
                                        : read_bool(gviCtx->BOOL());
       vars.push_back(GlobalVar::make(name, ty, std::move(init)));
     }
@@ -288,9 +288,22 @@ private:
                           read_type(ctx->type()));
   }
 
-  Type read_type(BXParser::TypeContext *ctx) {
-    auto var = ctx->getText();
-    return var == "int64" ? Type::INT64 : Type::BOOL;
+  Type* read_type(BXParser::TypeContext *ctx) {
+    if (auto *int_ctx = dynamic_cast<BXParser::InttypeContext *>(ctx)){
+      (void)int_ctx; 
+      return new INT64();
+    }
+    if (auto *bool_ctx = dynamic_cast<BXParser::BooltypeContext *>(ctx)){
+      (void)bool_ctx; 
+      return new BOOL();
+    }
+    if (auto *pointer_ctx = dynamic_cast<BXParser::PointertypeContext *>(ctx)){
+      return new POINTER(read_type(pointer_ctx->type()));
+    }
+    if (auto *list_ctx = dynamic_cast<BXParser::ListtypeContext*>(ctx)){
+      return new LIST(read_type(list_ctx->type()), 
+                      std::stoi(list_ctx->NUM()->getText()));
+    }
   }
 
   std::vector<std::pair<std::string, Type>>
