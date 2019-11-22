@@ -6,11 +6,11 @@
 #include "antlr4-runtime.h"
 
 #include "ast.h"
-#include "ast_rtl.h"
-#include "rtl.h"
-#include "type_check.h"
-#include "amd64.h"
-#include "rtl_asm.h"
+//#include "ast_rtl.h"
+//#include "rtl.h"
+//#include "type_check.h"
+//#include "amd64.h"
+//#include "rtl_asm.h"
 
 using namespace bx;
 
@@ -31,6 +31,7 @@ int main(int argc, char *argv[]) {
     auto file_root = bx_file.substr(0, bx_file.size() - 3);
 
     auto prog = source::read_program(bx_file);
+    /*
     check::type_check(prog);
     std::cout << bx_file << " parsed and type checked.\n";
     auto p_file = file_root + ".parsed";
@@ -47,7 +48,7 @@ int main(int argc, char *argv[]) {
     rtl_out.open(rtl_file);
     /*for (auto const &gv : prog.global_vars)
       rtl_out << "GLOBAL " << gv.first << " = " << *(gv.second->init) << " : "
-              << gv.second->ty << "\n\n";*/
+              << gv.second->ty << "\n\n";
     for (auto const &glb : gvars){
       rtl_out << glb.first << " = " << glb.second << std::endl;
     }
@@ -85,5 +86,7 @@ int main(int argc, char *argv[]) {
       std::exit(2);
     }
     std::cout << exe_file << " created.\n";
+  */
   }
+  return 0;
 }

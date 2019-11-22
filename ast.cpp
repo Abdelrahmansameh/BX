@@ -147,13 +147,34 @@ std::ostream &Call::print(std::ostream &out) const {
   return out << ')';
 }
 
+std::ostream &Alloc::print(std::ostream &out) const{
+  return out << "alloc " << typ << " [" << *size << "]";
+}
+
+std::ostream &Null::print(std::ostream &out) const{
+  return out << " null ";
+}
+
+std::ostream &Address::print(std::ostream &out) const{
+  return out << "&" << *src;
+}
+
+std::ostream &ListElem::print(std::ostream &out) const{
+  return out << *lst << "[" << *idx << "]"; 
+}
+
+std::ostream &Deref::print(std::ostream &out) const{
+  return out << "*" << *ptr;
+}
+
 std::ostream &Print::print(std::ostream &out) const {
   return out << "print " << *arg << ';';
 }
 
 std::ostream &Assign::print(std::ostream &out) const {
-  return out << left << " = " << *right << ';';
+  return out << *left << " = " << *right << ';';
 }
+
 
 std::ostream &Eval::print(std::ostream &out) const {
   return out << *expr << ';';
@@ -194,12 +215,12 @@ std::ostream &Return::print(std::ostream &out) const {
 }
 
 std::ostream &Callable::print(std::ostream &out) const {
-  out << (return_ty == Type::UNKNOWN ? "proc " : "fun ");
+  out << ( dynamic_cast<UNKNOWN * const >(return_ty) ? "proc " : "fun ");
   out << name << '(';
   for (auto const &p : args)
     out << p.first << " : " << p.second << ", ";
   out << ") ";
-  if (return_ty != Type::UNKNOWN)
+  if ( dynamic_cast<UNKNOWN * const >(return_ty) == NULL)
     out << " : " << return_ty << ' ';
   return out << *body;
 }
@@ -254,12 +275,23 @@ public:
 
 private:
   std::vector<GlobalVarPtr> read_globalvar(BXParser::GlobalVarContext *ctx) {
-    Type ty = read_type(ctx->type());
+    Type* ty = read_type(ctx->type());
     std::vector<GlobalVarPtr> vars;
     for (auto *gviCtx : ctx->globalVarInit()) {
       std::string name = gviCtx->ID()->getText();
-      ExprPtr init = ty == Type::INT64 ? read_num(gviCtx->NUM())
-                                       : read_bool(gviCtx->BOOL());
+      ExprPtr init;
+      if (dynamic_cast<INT64 * const >(ty)){  
+        init = read_num(gviCtx->NUM());
+      }
+      if (dynamic_cast<BOOL * const>(ty)){
+        init = read_bool(gviCtx->BOOL());
+      }
+      if (dynamic_cast<POINTER * const>(ty)){
+        init = read_num(gviCtx->NUM());
+      }
+      if (dynamic_cast<LIST * const>(ty)){
+        init = read_num(gviCtx->NUM());
+      }      
       vars.push_back(GlobalVar::make(name, ty, std::move(init)));
     }
     return vars;
@@ -268,18 +300,18 @@ private:
   CallablePtr read_proc(BXParser::ProcContext *ctx) {
     std::string name = ctx->ID()->getText();
     Callable::Params params;
-    for (auto *param_ctx : ctx->param()) {
+    for (auto *param_ctx : ctx->parameter_groups()->param()) {
       for (auto &p : read_param(param_ctx))
         params.push_back(p);
     }
     BlockPtr body = read_block(ctx->block());
-    return Callable::make(name, std::move(params), std::move(body));
+    return Callable::make(name, std::move(params), std::move(body), new UNKNOWN());
   }
 
   CallablePtr read_func(BXParser::FuncContext *ctx) {
     std::string name = ctx->ID()->getText();
     Callable::Params params;
-    for (auto *param_ctx : ctx->param()) {
+    for (auto *param_ctx : ctx->parameter_groups()->param()) {
       for (auto &p : read_param(param_ctx))
         params.push_back(p);
     }
@@ -288,15 +320,28 @@ private:
                           read_type(ctx->type()));
   }
 
-  Type read_type(BXParser::TypeContext *ctx) {
-    auto var = ctx->getText();
-    return var == "int64" ? Type::INT64 : Type::BOOL;
+  Type* read_type(BXParser::TypeContext *ctx) {
+    if (auto *int_ctx = dynamic_cast<BXParser::InttypeContext *>(ctx)){
+      (void)int_ctx; 
+      return new INT64();
+    }
+    if (auto *bool_ctx = dynamic_cast<BXParser::BooltypeContext *>(ctx)){
+      (void)bool_ctx; 
+      return new BOOL();
+    }
+    if (auto *pointer_ctx = dynamic_cast<BXParser::PointertypeContext *>(ctx)){
+      return new POINTER(read_type(pointer_ctx->type()));
+    }
+    if (auto *list_ctx = dynamic_cast<BXParser::ListtypeContext*>(ctx)){
+      return new LIST(read_type(list_ctx->type()), 
+                      std::stoi(list_ctx->NUM()->getText()));
+    }
   }
 
-  std::vector<std::pair<std::string, Type>>
+  std::vector<std::pair<std::string, Type*>>
   read_param(BXParser::ParamContext *ctx) {
-    std::vector<std::pair<std::string, Type>> params;
-    Type ty = read_type(ctx->type());
+    std::vector<std::pair<std::string, Type*>> params;
+    Type* ty = read_type(ctx->type());
     for (auto *nm : ctx->ID())
       params.push_back(std::make_pair(nm->getText(), ty));
     return params;
@@ -305,8 +350,8 @@ private:
   std::vector<StmtPtr> read_stmt(BXParser::StmtContext *ctx) {
     std::vector<StmtPtr> stmts;
     if (auto *assign_ctx = dynamic_cast<BXParser::AssignContext *>(ctx))
-      stmts.push_back(Assign::make(assign_ctx->ID()->getText(),
-                                   read_expr(assign_ctx->expr())));
+      stmts.push_back(Assign::make(read_expr(assign_ctx->expr(0)),
+                                   read_expr(assign_ctx->expr(1))));
     else if (auto *eval_ctx = dynamic_cast<BXParser::EvalContext *>(ctx))
       stmts.push_back(Eval::make(read_expr(eval_ctx->expr())));
     else if (auto *declare_ctx =
@@ -331,7 +376,7 @@ private:
 
   std::vector<StmtPtr> read_declare(BXParser::VarDeclContext *ctx) {
     std::vector<StmtPtr> decls;
-    Type ty = read_type(ctx->type());
+    Type* ty = read_type(ctx->type());
     for (auto *vi : ctx->varInit()) {
       decls.push_back(
           Declare::make(vi->ID()->getText(), ty, read_expr(vi->expr())));
@@ -364,7 +409,25 @@ private:
   }
 
   ExprPtr read_expr(BXParser::ExprContext *ctx) {
-    if (auto *variable_ctx = dynamic_cast<BXParser::VariableContext *>(ctx))
+    if (auto *alloc_ctx = dynamic_cast<BXParser::AllocContext *>(ctx)){
+      return Alloc::make(read_expr(alloc_ctx->expr()), 
+                  read_type(alloc_ctx->type()));
+    }
+    if (auto *null_ctx = dynamic_cast<BXParser::NullContext *>(ctx)){
+      (void)null_ctx;
+      return Null::make();
+    }
+    if (auto *deref_ctx = dynamic_cast<BXParser::DerefContext *>(ctx)){
+      return Deref::make(read_expr(deref_ctx->expr()));
+    }
+    if (auto *addr_ctx = dynamic_cast<BXParser::AddressContext *>(ctx)){
+      return Address::make(read_expr(addr_ctx->expr()));
+    }
+    if (auto *lelem_ctx = dynamic_cast<BXParser::ListelementContext *>(ctx)){
+      return ListElem::make(read_expr(lelem_ctx->expr(0))
+                            ,read_expr(lelem_ctx->expr(1)));
+    }
+    if (auto *variable_ctx = dynamic_cast<BXParser::IDContext *>(ctx))
       return Variable::make(variable_ctx->ID()->getText());
     else if (auto *call_ctx = dynamic_cast<BXParser::CallContext *>(ctx)) {
       std::vector<ExprPtr> args;
