@@ -167,6 +167,37 @@ struct CopyPM : public Instr {
 
 
 struct Load : public Instr {
+  int offset, scale;
+  Pseudo rb, ri, ro;
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "load " << rb << ', ' << ri << ", " << scale << ", " << offset << '>>' << ro << "  --> "
+               << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(Load, std::string const &src, int offset, Pseudo dest, Label succ)
+      : src{src}, offset{offset}, dest{dest}, succ{succ} {}
+};
+
+struct Store : public Instr {
+  Pseudo r, rb, ri;
+  int offset, scale;
+  Label succ;
+
+  std::ostream &print(std::ostream &out) const override {
+    return out << "store " << r << ", " << rb << ', ' << ri << ', ' << scale << ', ' << offset << "  --> "
+               << succ;
+  }
+  MAKE_VISITABLE
+  CONSTRUCTOR(Store, Pseudo src, std::string const &dest, int offset,
+              Label succ)
+      : src{src}, dest{dest}, offset{offset}, succ{succ} {}
+};
+
+/* LAB 4 VERSION
+struct Load : public Instr {
+  
   std::string src;
   int offset;
   Pseudo dest;
@@ -196,6 +227,7 @@ struct Store : public Instr {
               Label succ)
       : src{src}, dest{dest}, offset{offset}, succ{succ} {}
 };
+*/
 
 struct Unop : public Instr {
   enum Code : uint16_t { NEG, NOT };
