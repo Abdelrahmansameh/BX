@@ -34,33 +34,40 @@ namespace source {
 //enum class Type : int8_t { INT64 = 0, BOOL = 1, UNKNOWN = -1 };
 
 struct Type{
+  virtual std::ostream &print(std::ostream &out) const = 0;
   virtual ~Type() = default;
 };
+std::ostream &operator<<(std::ostream &out, Type const &e);
 
 struct INT64: Type{
   INT64(){};
+  std::ostream &print(std::ostream &out) const override;
 };
 
 struct BOOL: Type{
   BOOL(){};
+  std::ostream &print(std::ostream &out) const override;
 };
 
 struct UNKNOWN : Type{
   UNKNOWN(){};
+  std::ostream &print(std::ostream &out) const override;
 };
 
 struct POINTER: Type{
   Type* typ;
   POINTER(Type* typ): typ(typ) {} 
+  std::ostream &print(std::ostream &out) const override;
 };
 
 struct LIST: Type{
   Type* typ;
   int length;
   LIST(Type* typ, int length): typ(typ), length(length) {}
+  std::ostream &print(std::ostream &out) const override;
 };
 
-std::ostream &operator<<(std::ostream &out, Type const &ty);
+//std::ostream &operator<<(std::ostream &out, Type const ty);
 
 
 // clang-format off
@@ -90,7 +97,6 @@ std::ostream &operator<<(std::ostream &out, ASTNode const &e);
 // Expressions
 
 DECLARE_HEAP_STRUCT(Expr)
-DECLARE_HEAP_STRUCT(Variable)
 DECLARE_HEAP_STRUCT(IntConstant)
 DECLARE_HEAP_STRUCT(BoolConstant)
 DECLARE_HEAP_STRUCT(UnopApp)
@@ -100,6 +106,7 @@ DECLARE_HEAP_STRUCT(Alloc)
 DECLARE_HEAP_STRUCT(Null)
 DECLARE_HEAP_STRUCT(Address)
 //Assignables
+DECLARE_HEAP_STRUCT(Variable)
 DECLARE_HEAP_STRUCT(ListElem)
 DECLARE_HEAP_STRUCT(Deref)
 
@@ -124,8 +131,9 @@ struct ExprVisitor {
 struct Expr : public ASTNode {
   struct Meta {
     Type* ty;
+    bool assignable;
   };
-  std::unique_ptr<Meta> meta{new Meta{new UNKNOWN()}};
+  std::unique_ptr<Meta> meta{new Meta{new UNKNOWN(), false}};
   virtual int binding_priority() const { return INT_MAX; }
   virtual void accept(ExprVisitor &vis) const = 0;
   virtual int* getArg() const { return NULL;}
@@ -203,7 +211,7 @@ struct Null : public Expr{
   MAKE_VISITABLE
   FORBID_COPY(Null)
   CONSTRUCTOR(Null) {};
-};
+}; 
 
 struct Address : public Expr{
   ExprPtr src;
@@ -328,7 +336,7 @@ struct While : public Stmt {
 
 struct Declare : public Stmt {
   std::string var;
-  const Type* ty;
+  Type* ty;
   ExprPtr init;
   MAKE_PRINTABLE
   MAKE_VISITABLE
@@ -367,7 +375,7 @@ struct Callable : public ASTNode {
 
 struct GlobalVar : public ASTNode {
   std::string name;
-  const Type* ty;
+  Type* ty;
   ExprPtr init;
   MAKE_PRINTABLE
   FORBID_COPY(GlobalVar)

@@ -7,6 +7,31 @@ namespace bx {
 
 namespace source {
 
+std::ostream &operator<<(std::ostream &out, Type const &ty) {
+  return ty.print(out);
+}
+
+std::ostream &UNKNOWN::print(std::ostream &out) const {
+  return out << "unknown";
+}
+
+std::ostream &INT64::print(std::ostream &out) const {
+  return out << "int";
+}
+
+std::ostream &BOOL::print(std::ostream &out) const {
+  return out << "bool";
+}
+
+std::ostream &POINTER::print(std::ostream &out) const {
+  return out << *typ <<"*";
+}
+
+std::ostream &LIST::print(std::ostream &out) const {
+  return out << *typ << "[" << length << "]";
+}
+
+
 std::ostream &operator<<(std::ostream &out, const Binop op) {
   switch (op) {
     // clang-format off
@@ -148,7 +173,7 @@ std::ostream &Call::print(std::ostream &out) const {
 }
 
 std::ostream &Alloc::print(std::ostream &out) const{
-  return out << "alloc " << typ << " [" << *size << "]";
+  return out << "alloc " << *typ << " [" << *size << "]";
 }
 
 std::ostream &Null::print(std::ostream &out) const{
@@ -204,7 +229,7 @@ std::ostream &Declare::print(std::ostream &out) const {
   out << "var " << var;
   if (init)
     out << " = " << *init;
-  return out << " : " << ty << ';';
+  return out << " : " << *ty << ';';
 }
 
 std::ostream &Return::print(std::ostream &out) const {
@@ -218,10 +243,10 @@ std::ostream &Callable::print(std::ostream &out) const {
   out << ( dynamic_cast<UNKNOWN * const >(return_ty) ? "proc " : "fun ");
   out << name << '(';
   for (auto const &p : args)
-    out << p.first << " : " << p.second << ", ";
+    out << p.first << " : " << *p.second << ", ";
   out << ") ";
   if ( dynamic_cast<UNKNOWN * const >(return_ty) == NULL)
-    out << " : " << return_ty << ' ';
+    out << " : " << *return_ty << ' ';
   return out << *body;
 }
 
@@ -229,7 +254,7 @@ std::ostream &GlobalVar::print(std::ostream &out) const {
   out << "var " << name;
   if (init)
     out << " = " << *init;
-  return out << " : " << ty << ';';
+  return out << " : " << *ty << ';';
 }
 
 std::ostream &operator<<(std::ostream &out, Program const &prog) {
@@ -300,9 +325,13 @@ private:
   CallablePtr read_proc(BXParser::ProcContext *ctx) {
     std::string name = ctx->ID()->getText();
     Callable::Params params;
-    for (auto *param_ctx : ctx->parameter_groups()->param()) {
-      for (auto &p : read_param(param_ctx))
-        params.push_back(p);
+    if (ctx->parameter_groups()){ //Or else C++ does weird stuff
+    auto paramlst = ctx->parameter_groups()->param();
+      for (auto *param_ctx : paramlst) {
+        for (auto &p : read_param(param_ctx)){
+          params.push_back(p);
+        }
+      }
     }
     BlockPtr body = read_block(ctx->block());
     return Callable::make(name, std::move(params), std::move(body), new UNKNOWN());
@@ -336,6 +365,7 @@ private:
       return new LIST(read_type(list_ctx->type()), 
                       std::stoi(list_ctx->NUM()->getText()));
     }
+    return new UNKNOWN(); //supress warning
   }
 
   std::vector<std::pair<std::string, Type*>>

@@ -8,7 +8,7 @@
 #include "ast.h"
 //#include "ast_rtl.h"
 //#include "rtl.h"
-//#include "type_check.h"
+#include "type_check.h"
 //#include "amd64.h"
 //#include "rtl_asm.h"
 
@@ -31,14 +31,15 @@ int main(int argc, char *argv[]) {
     auto file_root = bx_file.substr(0, bx_file.size() - 3);
 
     auto prog = source::read_program(bx_file);
-    /*
-    check::type_check(prog);
     std::cout << bx_file << " parsed and type checked.\n";
     auto p_file = file_root + ".parsed";
     std::ofstream p_out;
     p_out.open(p_file);
     p_out << prog;
     p_out.close();
+    check::type_check(prog);
+
+    /*
     std::cout << p_file << " written.\n";
 
     auto rtl_file = file_root + ".rtl";
