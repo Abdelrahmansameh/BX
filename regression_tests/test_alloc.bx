@@ -1,0 +1,8 @@
+proc f(y : int64) {
+  var x = alloc int64[10] : int64[10] *;
+  print(y); // TODO
+}
+
+proc main() {
+  f(100);
+}
