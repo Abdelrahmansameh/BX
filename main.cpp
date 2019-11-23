@@ -6,8 +6,8 @@
 #include "antlr4-runtime.h"
 
 #include "ast.h"
-//#include "ast_rtl.h"
-//#include "rtl.h"
+#include "ast_rtl.h"
+#include "rtl.h"
 #include "type_check.h"
 //#include "amd64.h"
 //#include "rtl_asm.h"

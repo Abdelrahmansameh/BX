@@ -31,6 +31,17 @@ std::ostream &LIST::print(std::ostream &out) const {
   return out << *typ << "[" << length << "]";
 }
 
+int sizeOf(Type* typ){
+  if (dynamic_cast<INT64 *>(typ))
+    return 8;
+  if (dynamic_cast<BOOL *>(typ))
+    return 8;
+  if (dynamic_cast<POINTER *>(typ))
+    return 8;
+  if (auto lst = dynamic_cast<LIST *>(typ))
+    return sizeOf(lst->typ) * lst->length;
+  return 0;
+}
 
 std::ostream &operator<<(std::ostream &out, const Binop op) {
   switch (op) {

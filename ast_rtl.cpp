@@ -20,6 +20,15 @@ inline rtl::Label fresh_label() { return rtl::Label{last_label++}; }
 */
 std::map<std::string, int > global_var_init;
 
+/**
+ * Mapping from global variable to offset
+ */
+std::map<std::string, int > global_var_offset;
+
+/**
+ * Size of heap
+ */
+int globaloffset = 0;
 
 /**
  * A common generator for both expressions and statements
@@ -28,7 +37,7 @@ std::map<std::string, int > global_var_init;
  * for statements, int64 expressions, boolean expressions, etc. with modest
  * increase in code complexity.
  */
-struct RtlGen : public source::StmtVisitor, public source::ExprVisitor {
+struct RtlGen : public source::StmtVisitor, public source::ExprVisitor, public source::Addressor {
   /** input label where "next" instruction will be
    *
    * After code gen:
@@ -47,6 +56,10 @@ struct RtlGen : public source::StmtVisitor, public source::ExprVisitor {
    * For int64 expressions: result becomes destination for value
    */
   rtl::Pseudo result{-1};
+  /**
+   * For assignables: address becomes a pseudo holding the address of the assignable
+   */
+  rtl::Pseudo address{-1};
 
 private:
   source::Program const &source_prog;
@@ -58,9 +71,19 @@ private:
   std::unordered_map<std::string, rtl::Pseudo> var_table;
 
   /**
+   * Mapping from variables to offset 
+   */
+  std::unordered_map<std::string, int> var_offset;
+
+  /**
   * List of global variables
   */
   std::unordered_map<std::string, rtl::Pseudo> gvar_table;
+
+  /*
+  * Last offset
+  */
+  int lastoffset = 0;
 
   /**
    * Check if the variable is mapped to a pseudo; if not, create a fresh such
@@ -70,13 +93,17 @@ private:
     if (global_var_init.find(v) !=  global_var_init.end()){
       if (gvar_table.find(v) == gvar_table.end()){
         auto ps = fresh_pseudo();
-        add_sequential([&](auto next) { return Load::make(v, 0, ps, next); });
+        lastoffset += 8;
+        add_sequential([&](auto next) { return Load::make(v, 0, ps,discard_pr,bx::amd64::reg::rip, next); });
         gvar_table.insert_or_assign(v, ps);
       }
       return gvar_table.at(v);
     }
-    if (var_table.find(v) == var_table.end())
+    if (var_table.find(v) == var_table.end()){
       var_table.insert_or_assign(v, fresh_pseudo());
+      var_offset.insert_or_assign(v, lastoffset);
+      lastoffset += 8;
+    }
     return var_table.at(v);
   }
 
@@ -103,6 +130,7 @@ private:
    */
   void intify() {
     result = fresh_pseudo();
+    lastoffset += 8;
     auto next_label = fresh_label();
     rtl_cbl.add_instr(in_label, Move::make(1, result, next_label));
     rtl_cbl.add_instr(false_label, Move::make(0, result, next_label));
@@ -114,6 +142,7 @@ private:
    */
   rtl::Pseudo copy_of_result() {
     auto reg = fresh_pseudo();
+    lastoffset += 8;
     add_sequential([&](auto next) { return Copy::make(result, reg, next); });
     return reg;
   }
@@ -135,20 +164,28 @@ public:
     }
 
     // output pseudo
-    rtl_cbl.output_reg =
-        (dynamic_cast<source::UNKNOWN*>(cbl->return_ty)) ? rtl::discard_pr : fresh_pseudo();
-    
+    if (dynamic_cast<source::UNKNOWN*>(cbl->return_ty)){ 
+      rtl_cbl.output_reg = rtl::discard_pr;
+    }
+    else{
+      rtl_cbl.output_reg =fresh_pseudo();
+      lastoffset += 8;
+    }
+
     // enter label
     rtl_cbl.enter = fresh_label();
+    lastoffset += 8;
     
     //leave label
     rtl_cbl.leave = fresh_label();
+    lastoffset += 8;
 
     // Update in_label
     in_label = rtl_cbl.enter;
     
     // Placehold the new frame first 
     auto fresh = fresh_label();
+    lastoffset += 8;
     auto tmpin = in_label;
     in_label = fresh;
 
@@ -164,6 +201,7 @@ public:
     std::vector<rtl::Pseudo> saved_locs;
     for (int i = 0; i < 6; i++){
       auto ps = fresh_pseudo();
+      lastoffset += 8;
       saved_locs.push_back(ps);
       add_sequential([&](auto next) { return CopyMP::make(callee_saved[i], ps, next);});
     }
@@ -224,16 +262,44 @@ public:
 
   rtl::Callable &&deliver() { return std::move(rtl_cbl); }
 
+
+  void addMemset(int offset, int size){
+    auto fr1 = fresh_pseudo();
+    lastoffset += 8;
+    add_sequential([&](auto next) { return CopyMP::make(bx::amd64::reg::rbp, fr1, next); });
+    auto rbp = result;
+    auto poffset = source::IntConstant::make(offset);
+    poffset->accept(*this);
+    auto res = result;
+    add_sequential([&](auto next) { return Binop::make(rtl::Binop::ADD, rbp, res, next);});
+    
+  }
   void visit(source::Declare const &dec) override {
-    auto pr = get_pseudo(dec.var);
-    dec.init->accept(*this);
-    if (dynamic_cast<source::BOOL*>(dec.ty))
+    if (dynamic_cast<source::BOOL*>(dec.ty)){
+      auto pr = get_pseudo(dec.var);
+      dec.init->accept(*this);
       intify();
-    add_sequential([&](auto next) { return Copy::make(result, pr, next); });
+      add_sequential([&](auto next) { return Copy::make(result, pr, next); });
+    }
+    if (dynamic_cast<source::INT64*>(dec.ty)){
+      auto pr = get_pseudo(dec.var);
+      dec.init->accept(*this);
+      add_sequential([&](auto next) { return Copy::make(result, pr, next); });
+    }
+    if (dynamic_cast<source::POINTER*>(dec.ty)){
+      auto pr = get_pseudo(dec.var);
+      dec.init->accept(*this);
+      add_sequential([&](auto next) { return Copy::make(result, pr, next); });
+    }
+    if (auto lst = dynamic_cast<source::LIST*>(dec.ty)){
+      auto pr = get_pseudo(dec.var);
+      dec.init->accept(*this);
+      add_sequential([&](auto next) { return Copy::make(result, pr, next); });
+    }
   }
 
   void visit(source::Assign const &mv) override {
-    auto source_reg = get_pseudo(mv.left);
+    /*auto source_reg = get_pseudo(mv.left);
     mv.right->accept(*this);
     if (dynamic_cast<source::BOOL*>(mv.right->meta->ty))
       intify();
@@ -246,7 +312,7 @@ public:
         [&](auto next) { return Store::make(result, mv.left, 0, next );} );
       add_sequential(
         [&](auto next) { return Copy::make(result, source_reg, next); });
-    }
+    }*/
   }
 
   void visit(source::Eval const &ev) override {
@@ -334,6 +400,7 @@ public:
 
   void visit(source::IntConstant const &k) override {
     result = fresh_pseudo();
+    lastoffset += 8;
     add_sequential(
         [&](auto next_lab) { return Move::make(k.value, result, next_lab); });
   }
@@ -494,26 +561,113 @@ public:
           [&](auto next) { return Push::make(args[nArgs-i], next);});
       }
     }
-    result = dynamic_cast<source::UNKNOWN*>(source_prog.callables.at(ca.func)->return_ty)
-                 ? rtl::discard_pr
-                 : fresh_pseudo();
+    if (dynamic_cast<source::UNKNOWN*>(source_prog.callables.at(ca.func)->return_ty)){
+      result = rtl::discard_pr;
+    }
+    else{
+      result = fresh_pseudo();
+      lastoffset += 8;
+    }
     add_sequential(
       [&](auto next) { return Call::make(ca.func, nArgs, next); });
-    if (!dynamic_cast<source::UNKNOWN>(source_prog.callables.at(ca.func)->return_ty)){
+    if (!dynamic_cast<source::UNKNOWN*>(source_prog.callables.at(ca.func)->return_ty)){
       add_sequential(
         [&](auto next) {return CopyMP::make(bx::amd64::reg::rax, result, next);});
       }
     }
+
+  void visit(source::Alloc const &al) override{
+
+  }
+
+  void visit(source::Null const &nl) override{
+
+  }
+
+  void visit(source::Address const &adr) override{
+
+  }
+
+  void visit(source::ListElem const &lelm ) override{
+
+  }
+
+  void visit(source::Deref const &drf) override{
+
+  }
+
+
+  void visitAddress(source::Variable const &va) override {
+    auto v = va.label;
+    if (global_var_init.find(v) != global_var_init.end()){
+        auto ps = fresh_pseudo();
+        lastoffset += 8;
+        add_sequential([&](auto next) { return CopyAP::make(v, -1, bx::amd64::reg::rip, discard_pr, ps, next); });
+        address = ps;
+    }
+    if (var_offset.find(v) != var_offset.end()){
+      auto ps = fresh_pseudo();
+      lastoffset += 8;
+      add_sequential([&](auto next) { return CopyAP::make("",var_offset.at(v), bx::amd64::reg::rbp, discard_pr, ps, next); });
+      address = ps;
+    }
+  }
+
+  void visitAddress(source::ListElem const &lelm) override {
+    lelm.lst->acceptAddress(*this);
+    auto tmpaddr = address;
+    lelm.idx->accept(*this);
+    auto tmpidx = result;
+    auto ps = fresh_pseudo();
+    lastoffset += 8;
+    
+  }
+  
+  void visitAddress(source::Deref const &drf) override {
+    drf.ptr->acceptAddress(*this);
+    auto ps = fresh_pseudo();
+    lastoffset += 8;
+    add_sequential([&](auto next){ return Load::make("", 0, ps, address, bx::amd64::reg::rbp, next);});
+    address = ps;
+  }
 };
 
 std::map<std::string, int> getGlobals(source::Program const &src_prog){
   for (auto &glb : src_prog.global_vars) {
-    int* init = glb.second->init->getArg();
-    if (init == NULL){
-      std::cout << "Bad variable initialization for " << glb.first << std::endl;
+    //Seperated the cases for debgging
+    if (dynamic_cast<source::INT64*>(glb.second->ty) || 
+    dynamic_cast<source::BOOL*>(glb.second->ty) ) {
+      int* init = glb.second->init->getArg();
+      if (init == NULL){
+        std::cout << "Bad variable initialization for " << glb.first << std::endl;
+      }
+      else{
+        global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
+        global_var_offset.insert(std::pair<std::string, int>(glb.first, globaloffset));
+        globaloffset += bx::source::sizeOf(glb.second->ty);
+      }
     }
-    else{
-      global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
+    if (dynamic_cast<source::POINTER*>(glb.second->ty)){
+      int* init = glb.second->init->getArg();
+      if (init == NULL){
+        std::cout << "Bad variable initialization for " << glb.first << std::endl;
+      }
+      else{
+        global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
+        global_var_offset.insert(std::pair<std::string, int>(glb.first, globaloffset));
+        globaloffset += bx::source::sizeOf(glb.second->ty);
+      }
+    }
+    if (dynamic_cast<source::LIST*>(glb.second->ty)){
+      int* init = glb.second->init->getArg();
+      if (init == NULL){
+        std::cout << "Bad variable initialization for " << glb.first << std::endl;
+      }
+      else{
+        global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
+        global_var_offset.insert(std::pair<std::string, int>(glb.first, globaloffset));
+        globaloffset += bx::source::sizeOf(glb.second->ty);
+      }
     }
   }
   return global_var_init;

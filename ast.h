@@ -67,6 +67,7 @@ struct LIST: Type{
   std::ostream &print(std::ostream &out) const override;
 };
 
+int sizeOf(Type* typ);
 //std::ostream &operator<<(std::ostream &out, Type const ty);
 
 
@@ -128,6 +129,16 @@ struct ExprVisitor {
 #undef VISITOR
 };
 
+struct Addressor{
+#define GET_ADDRESS(Cls)                                                           \
+  virtual void visitAddress(Cls const &) = 0;                                         \
+  void visitAddress(Cls##Ptr &c) { visitAddress(*c); }
+  GET_ADDRESS(Variable)
+  GET_ADDRESS(ListElem)
+  GET_ADDRESS(Deref)
+#undef GET_ADDRESS
+};
+
 struct Expr : public ASTNode {
   struct Meta {
     Type* ty;
@@ -136,16 +147,24 @@ struct Expr : public ASTNode {
   std::unique_ptr<Meta> meta{new Meta{new UNKNOWN(), false}};
   virtual int binding_priority() const { return INT_MAX; }
   virtual void accept(ExprVisitor &vis) const = 0;
+  virtual void acceptAddress(Addressor &addressor) const = 0;
   virtual int* getArg() const { return NULL;}
 };
 
 #define MAKE_VISITABLE                                                         \
   void accept(ExprVisitor &vis) const final { vis.visit(*this); }
 
+#define MAKE_ADDRESSABLE                                                         \
+  void acceptAddress(Addressor &adressor) const final { adressor.visitAddress(*this); }
+
+#define NOT_ADDRESSABLE                                                        \
+  void acceptAddress(Addressor &adressor) const final {(void)&adressor; return; }
+
 struct Variable : public Expr {
   std::string label;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  MAKE_ADDRESSABLE
   CONSTRUCTOR(Variable, std::string label) : label{label} {}
 };
 
@@ -153,6 +172,7 @@ struct IntConstant : public Expr {
   const int64_t value;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   CONSTRUCTOR(IntConstant, int64_t value) : value(value) {}
   int* getArg() const override { return new int(value);}
 };
@@ -161,6 +181,7 @@ struct BoolConstant : public Expr {
   const bool value;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   CONSTRUCTOR(BoolConstant, bool value) : value(value) {}
   int* getArg() const override { return new int(value ? 1 : 0);}
 };
@@ -171,6 +192,7 @@ struct UnopApp : public Expr {
   int binding_priority() const override;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   FORBID_COPY(UnopApp)
   CONSTRUCTOR(UnopApp, Unop op, ExprPtr arg) : op(op), arg{std::move(arg)} {}
 };
@@ -181,6 +203,7 @@ struct BinopApp : public Expr {
   int binding_priority() const override;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   FORBID_COPY(BinopApp)
   CONSTRUCTOR(BinopApp, ExprPtr left_arg, Binop op, ExprPtr right_arg)
       : op(op), left_arg{std::move(left_arg)}, right_arg{std::move(right_arg)} {
@@ -192,6 +215,7 @@ struct Call : public Expr {
   std::vector<ExprPtr> args;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   FORBID_COPY(Call)
   CONSTRUCTOR(Call, std::string const &func, std::vector<ExprPtr> &args)
       : func(func), args(std::move(args)) {}
@@ -202,6 +226,7 @@ struct Alloc : public Expr {
   Type* typ; 
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   FORBID_COPY(Alloc)
   CONSTRUCTOR(Alloc, ExprPtr size, Type* typ ): size(std::move(size)), typ(typ) {}
 };
@@ -209,6 +234,7 @@ struct Alloc : public Expr {
 struct Null : public Expr{
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   FORBID_COPY(Null)
   CONSTRUCTOR(Null) {};
 }; 
@@ -217,6 +243,7 @@ struct Address : public Expr{
   ExprPtr src;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  NOT_ADDRESSABLE
   FORBID_COPY(Address)
   CONSTRUCTOR(Address, ExprPtr src): src(std::move(src)) {}
 };
@@ -226,6 +253,7 @@ struct ListElem : public Expr{
   ExprPtr idx;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  MAKE_ADDRESSABLE
   FORBID_COPY(ListElem)
   CONSTRUCTOR(ListElem, ExprPtr lst, ExprPtr idx): lst(std::move(lst)),
              idx(std::move(idx)) {}
@@ -235,12 +263,13 @@ struct Deref : public Expr{
   ExprPtr ptr;
   MAKE_PRINTABLE
   MAKE_VISITABLE
+  MAKE_ADDRESSABLE
   FORBID_COPY(Deref)
   CONSTRUCTOR(Deref, ExprPtr ptr) : ptr(std::move(ptr)) {} 
 };
 
 #undef MAKE_VISITABLE
-
+#undef MAKE_ADDRESSABLE
 
 ////////////////////////////////////////////////////////////////////////////////
 // Statements
