@@ -1,0 +1,7 @@
+proc main(){
+    var x = 6 : int64;
+    var y = null : int64*;
+    var z = &x : int64*;
+    print(y == z);
+    var w = alloc int64[10][1] : int64[10]*;
+}

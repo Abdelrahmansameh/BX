@@ -12,7 +12,6 @@ inline void [[noreturn]] panic(std::string const &msg) {
 }
 
 std::string ty_to_string(Type* ty) {
-  std::cout << "TEST\n";
   if (dynamic_cast<INT64 *>(ty))
     return "int64";
   if (dynamic_cast<BOOL *>(ty))
@@ -104,12 +103,15 @@ public:
     mv.left->accept(*this);
     mv.right->accept(*this);
     if (!mv.left->meta->assignable){
+      std::cout << "in " << mv << std::endl;
       panic(std::string{"lhs of type "} + ty_to_string(mv.right->meta->ty)
             + "which is not assignable hun");
     }
+    visit_checked(mv.right, mv.left->meta->ty);
+    /*
     if (typeid(*(mv.right->meta->ty)) != typeid(*mv.right->meta->ty))
       panic(std::string{"lhs of type "} + ty_to_string(mv.right->meta->ty) +
-            " assigned to rhs of type " + ty_to_string(mv.right->meta->ty));
+            " assigned to rhs of type " + ty_to_string(mv.right->meta->ty));*/
 }
 
   void visit(Declare const &dec) override {
@@ -143,7 +145,7 @@ public:
 
   void visit(IfElse const &ie) override {
     ie.condition->accept(*this);
-    if (dynamic_cast<BOOL*>(ie.condition->meta->ty)) //(ie.condition->meta->ty != Type::BOOL) 
+    if (!dynamic_cast<BOOL*>(ie.condition->meta->ty)) //(ie.condition->meta->ty != Type::BOOL) 
       panic("if condition is not a bool expression");
     ie.true_branch->accept(*this);
     ie.false_branch->accept(*this);
@@ -151,8 +153,11 @@ public:
 
   void visit(While const &wl) override {
     wl.condition->accept(*this);
-    if (dynamic_cast<BOOL*>(wl.condition->meta->ty))
-      panic("while condition is not a bool expression");
+    if (!dynamic_cast<BOOL*>(wl.condition->meta->ty)){
+      std::cout << "in "  << wl;
+      panic("while condition is not a bool expression (" + 
+            ty_to_string(wl.condition->meta->ty)+ ")");
+    }
     wl.loop_body->accept(*this);
   }
 
@@ -182,6 +187,16 @@ public:
 
   void visit_checked(ExprPtr const &e, Type const * expected) {
     e->accept(*this);
+    if (auto ptr1 = dynamic_cast<POINTER* const>(e->meta->ty) ){
+      if (auto ptr2 = dynamic_cast<const POINTER*>(expected)){
+        if (ptr1->typ == NULL){
+          return;
+        }
+        if (ptr2->typ == NULL){
+          return;
+        }
+      }
+    }
     if (typeid(*(e->meta->ty)) != typeid(*expected)) {
       std::ostringstream ss;
       ss << "type mismatch on: \"" << *e << "\": expected " << *expected
@@ -223,7 +238,7 @@ public:
     case Binop::Eq:
     case Binop::Neq:
       bo.left_arg->accept(*this);
-      bo.right_arg->accept(*this);
+      /*bo.right_arg->accept(*this);
       if (auto ptr1 = dynamic_cast<POINTER* const>(bo.left_arg->meta->ty)){
         if (auto ptr2 = dynamic_cast<POINTER* const>(bo.right_arg->meta->ty)){
           if (ptr1->typ == NULL){
@@ -233,14 +248,14 @@ public:
           if (ptr2->typ == NULL){
             bo.meta->ty = new BOOL();
             return;
-          }
+          } 
         }
         else{
           panic("illegal equality between " + 
                 ty_to_string(bo.left_arg->meta->ty) +
                 " and " + ty_to_string(bo.right_arg->meta->ty));
         }
-      }
+      }*/
       visit_checked(bo.right_arg, bo.left_arg->meta->ty);
       bo.meta->ty = new BOOL();
       break;
@@ -285,7 +300,14 @@ public:
 
   void visit(Address const &adr) override{
     adr.src->accept(*this);
-    adr.meta->ty = new POINTER(adr.src->meta->ty);
+    if (adr.src->meta->assignable){
+      adr.meta->ty = new POINTER(adr.src->meta->ty);
+    }
+    else{
+      panic(std::string{"You tried to get the address of a"} +  
+      ty_to_string(adr.src->meta->ty) +
+      "which is not a list hun");
+    }
   }
 
   void visit(ListElem const &lelm) override{
@@ -293,6 +315,11 @@ public:
     lelm.lst->accept(*this);
     if (auto t = dynamic_cast<LIST* const>(lelm.lst->meta->ty)){
       lelm.meta->ty = t->typ;
+      lelm.meta->assignable = true;
+    }
+    else if(auto ptr = dynamic_cast<POINTER* const>(lelm.lst->meta->ty)){
+      lelm.meta->ty = ptr->typ;
+      lelm.meta->assignable = true;
     }
     else{
       panic(std::string{"You tried to access an element from"} +  

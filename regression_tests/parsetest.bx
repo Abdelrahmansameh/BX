@@ -1,0 +1,7 @@
+proc f(x: int64, y :int64, z :int64){
+    return;
+}
+
+proc main(){
+    print(5);
+}

@@ -19,7 +19,7 @@ globalVarInit: ID '=' (NUM | BOOL);
 func: 'fun' ID '(' parameter_groups? ')' ':' type block; 
 proc: 'proc' ID '(' parameter_groups? ')' block;
 
-parameter_groups: param (',' param)?;
+parameter_groups: param (',' param)*;
 param: ID (',' ID)* ':' type;
 
 stmt: expr '=' expr ';'          # assign

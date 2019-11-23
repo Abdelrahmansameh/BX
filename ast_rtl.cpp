@@ -134,10 +134,9 @@ public:
       rtl_cbl.input_regs.push_back(reg);
     }
 
-    
     // output pseudo
     rtl_cbl.output_reg =
-        cbl->return_ty == Type::UNKNOWN ? rtl::discard_pr : fresh_pseudo();
+        (dynamic_cast<source::UNKNOWN*>(cbl->return_ty)) ? rtl::discard_pr : fresh_pseudo();
     
     // enter label
     rtl_cbl.enter = fresh_label();
@@ -199,7 +198,7 @@ public:
     cbl->body->accept(*this);
 
     //Put the return value in rax
-    if (cbl->return_ty != Type::UNKNOWN){
+    if (!dynamic_cast<source::UNKNOWN*>(cbl->return_ty)){
       add_sequential([&](auto next) { return CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, next);});
     }
 
@@ -228,7 +227,7 @@ public:
   void visit(source::Declare const &dec) override {
     auto pr = get_pseudo(dec.var);
     dec.init->accept(*this);
-    if (dec.ty == Type::BOOL)
+    if (dynamic_cast<source::BOOL*>(dec.ty))
       intify();
     add_sequential([&](auto next) { return Copy::make(result, pr, next); });
   }
@@ -236,7 +235,7 @@ public:
   void visit(source::Assign const &mv) override {
     auto source_reg = get_pseudo(mv.left);
     mv.right->accept(*this);
-    if (mv.right->meta->ty == Type::BOOL)
+    if (dynamic_cast<source::BOOL*>(mv.right->meta->ty))
       intify();
     if (gvar_table.find(mv.left) == gvar_table.end()){
       add_sequential(
@@ -252,16 +251,16 @@ public:
 
   void visit(source::Eval const &ev) override {
     ev.expr->accept(*this);
-    if (ev.expr->meta->ty == Type::BOOL)
+    if (dynamic_cast<source::BOOL*>(ev.expr->meta->ty))
       intify();
   }
 
   void visit(source::Print const &pr) override {
     pr.arg->accept(*this);
-    if (pr.arg->meta->ty == Type::BOOL)
+    if (dynamic_cast<source::BOOL*>(pr.arg->meta->ty))
       intify();
     std::string func =
-        pr.arg->meta->ty == Type::INT64 ? "bx_print_int" : "bx_print_bool";
+        dynamic_cast<source::INT64*>(pr.arg->meta->ty) ? "bx_print_int" : "bx_print_bool";
     add_sequential([&](auto next) {
       return CopyPM::make(result, bx::amd64::reg::rdi, next);
     });
@@ -307,7 +306,7 @@ public:
   void visit(source::Return const &ret) override {
     if (ret.arg) {
       ret.arg->accept(*this);
-      if (ret.arg->meta->ty == Type::BOOL)
+      if (dynamic_cast<source::BOOL*>(ret.arg->meta->ty))
         intify();
       if (rtl_cbl.output_reg != rtl::discard_pr){
         add_sequential([&](auto next) {
@@ -325,7 +324,7 @@ public:
 
   void visit(source::Variable const &v) override {
     result = get_pseudo(v);
-    if (v.meta->ty == Type::BOOL) {
+    if (dynamic_cast<source::BOOL*>(v.meta->ty)) {
       false_label = fresh_label();
       add_sequential([&](auto next) {
         return Ubranch::make(rtl::Ubranch::JNZ, result, next, false_label);
@@ -442,11 +441,11 @@ public:
     if (bo.op != source::Binop::Eq && bo.op != source::Binop::Neq)
       return; // case not relevant
     bo.left_arg->accept(*this);
-    if (bo.left_arg->meta->ty == Type::BOOL)
+    if (dynamic_cast<source::BOOL*>(bo.left_arg->meta->ty))
       intify();
     auto left_result = result;
     bo.right_arg->accept(*this);
-    if (bo.right_arg->meta->ty == Type::BOOL)
+    if (dynamic_cast<source::BOOL*>(bo.right_arg->meta->ty))
       intify();
     false_label = fresh_label();
     auto bbr_op =
@@ -495,12 +494,12 @@ public:
           [&](auto next) { return Push::make(args[nArgs-i], next);});
       }
     }
-    result = source_prog.callables.at(ca.func)->return_ty == Type::UNKNOWN
+    result = dynamic_cast<source::UNKNOWN*>(source_prog.callables.at(ca.func)->return_ty)
                  ? rtl::discard_pr
                  : fresh_pseudo();
     add_sequential(
       [&](auto next) { return Call::make(ca.func, nArgs, next); });
-    if (source_prog.callables.at(ca.func)->return_ty != Type::UNKNOWN){
+    if (!dynamic_cast<source::UNKNOWN>(source_prog.callables.at(ca.func)->return_ty)){
       add_sequential(
         [&](auto next) {return CopyMP::make(bx::amd64::reg::rax, result, next);});
       }

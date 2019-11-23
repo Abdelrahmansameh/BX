@@ -1,9 +1,9 @@
 proc f(y : int64) {
-  var x = alloc int64[10] : int64[10] *;
-  var z = *x[0] + y; 
+  var x = alloc int64[10] : int64*;
+  var z = *x + y : int64; 
   print(z);
 }
 
-proc main() {
+proc main() {  
   f(100);
 }

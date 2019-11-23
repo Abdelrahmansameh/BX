@@ -1,0 +1,42 @@
+// insertion sort
+
+proc insert(arr : int64*, len : int64, x : int64) {
+  // insert x into arr[0..len], leaving it sorted
+  arr[len] = x;
+  var cur = len : int64;
+  var keep_going = true : bool;
+  while (cur > 0 && keep_going) {
+    if (arr[cur] < arr[cur - 1]) {
+       var t = arr[cur - 1] : int64;
+       arr[cur - 1] = arr[cur];
+       arr[cur] = t;
+    } else {
+       keep_going = false;
+    }
+  }
+}
+
+proc main() {
+  var len = 10 : int64;
+  var arr = alloc int64[len] : int64*;
+  arr[0] = 21;
+  arr[1] = 23;
+  arr[2] = 3;
+  arr[3] = 20;
+  arr[4] = 17;
+  arr[5] = 26;
+  arr[6] = 26;
+  arr[7] = 20;
+  arr[8] = 12;
+  arr[9] = 6;
+  var pos = 0 : int64;
+  while (pos < len) {
+    insert(arr, pos, arr[pos]);
+    pos = pos + 1;
+  }
+  pos = 0;
+  while (pos < len) {
+    print arr[pos];
+    pos = pos + 1;
+  }
+}
