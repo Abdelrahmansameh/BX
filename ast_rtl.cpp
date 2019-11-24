@@ -247,7 +247,7 @@ public:
     }
     // Update the size of NewFrame
     pseudoCounter -= last_pseudo;
-    rtl_cbl.add_instr(tmpin, NewFrame::make(fresh, pseudoCounter));
+    rtl_cbl.add_instr(tmpin, NewFrame::make(fresh, lastoffset));
 
     // Insert a Delframe
     //rtl_cbl.add_instr(in_label, DelFrame::make(rtl_cbl.leave));
@@ -264,16 +264,25 @@ public:
 
 
   void addMemset(int offset, int size){
-    auto fr1 = fresh_pseudo();
+    auto rbp = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next) { return CopyMP::make(bx::amd64::reg::rbp, fr1, next); });
-    auto rbp = result;
-    auto poffset = source::IntConstant::make(offset);
-    poffset->accept(*this);
-    auto res = result;
-    add_sequential([&](auto next) { return Binop::make(rtl::Binop::ADD, rbp, res, next);});
-    
-  }
+    add_sequential([&](auto next) { return CopyMP::make(bx::amd64::reg::rbp, rbp, next); });
+    auto ioffset = source::IntConstant::make(offset);
+    ioffset->accept(*this);
+    auto poffset = result;
+    add_sequential([&](auto next) { return Binop::make(rtl::Binop::SUB, rbp, poffset, next);});
+    auto isize = source::IntConstant::make(size);
+    isize->accept(*this);
+    auto psize = result;
+    auto izero = source::IntConstant::make(0);
+    izero->accept(*this);
+    auto pzero = result;
+    // rdi rsi rdx
+    add_sequential([&](auto next) { return CopyPM::make(poffset, bx::amd64::reg::rdi,next);});
+    add_sequential([&](auto next) { return CopyPM::make(pzero, bx::amd64::reg::rsi, next);});
+    add_sequential([&](auto next) { return CopyPM::make(psize, bx::amd64::reg::rdx, next);});
+    add_sequential([&](auto next) { return Call::make("memset", 3, next); });  
+    }
   void visit(source::Declare const &dec) override {
     if (dynamic_cast<source::BOOL*>(dec.ty)){
       auto pr = get_pseudo(dec.var);
@@ -293,17 +302,22 @@ public:
     }
     if (auto lst = dynamic_cast<source::LIST*>(dec.ty)){
       auto pr = get_pseudo(dec.var);
-      dec.init->accept(*this);
-      add_sequential([&](auto next) { return Copy::make(result, pr, next); });
+      //addMemset(var_offset.at(dec.var), source::sizeOf(lst->typ));
+      //dec.init->accept(*this);
+      //add_sequential([&](auto next) { return Copy::make(result, pr, next); });
     }
   }
 
   void visit(source::Assign const &mv) override {
-    /*auto source_reg = get_pseudo(mv.left);
+    mv.left->acceptAddress(*this);
+    auto source_reg = address;
     mv.right->accept(*this);
     if (dynamic_cast<source::BOOL*>(mv.right->meta->ty))
       intify();
-    if (gvar_table.find(mv.left) == gvar_table.end()){
+    std::cout << source_reg << std::endl;
+    add_sequential([&](auto next) {return Store::make(result, "", 
+                                          source_reg, bx::amd64::reg::rbp, 0, next);});
+    /*if (gvar_table.find(mv.left) == gvar_table.end()){
       add_sequential(
         [&](auto next) { return Copy::make(result, source_reg, next); });
     }
@@ -577,23 +591,61 @@ public:
     }
 
   void visit(source::Alloc const &al) override{
-
+    auto iscale = source::IntConstant::make(sizeOf(al.typ));
+    iscale->accept(*this);
+    auto scale = result;
+    al.size->accept(*this);
+    auto length = result;
+    add_sequential([&](auto next){return Binop::make(rtl::Binop::MUL, scale, length, next);});
+    add_sequential([&](auto next) {
+      return CopyPM::make(length, bx::amd64::reg::rdi, next);
+    });
+    std::string func = "malloc";
+    add_sequential([&](auto next) {
+      return Call::make(func, 1,
+                        next);
+    });
+    auto ps = fresh_pseudo();
+    lastoffset += 8;
+    add_sequential([&](auto next) {return CopyMP::make(bx::amd64::reg::rax, ps, next);});
+    result = ps;
   }
 
   void visit(source::Null const &nl) override{
-
+    auto nul = source::IntConstant::make(0);
+    nul->accept(*this);
   }
 
   void visit(source::Address const &adr) override{
-
+    adr.src->acceptAddress(*this);
+    result = address;
   }
 
   void visit(source::ListElem const &lelm ) override{
-
+    lelm.lst->acceptAddress(*this);
+    auto lstaddress = address;
+    lelm.idx->accept(*this);
+    auto idx = result;
+    source::IntConstantPtr iscale;
+    if (auto lst = dynamic_cast<source::LIST*>(lelm.lst->meta->ty)){
+      iscale = source::IntConstant::make(sizeOf(lst->typ));
+    }
+    iscale->accept(*this);
+    auto scale = result;
+    add_sequential([&](auto next) {return Binop::make(rtl::Binop::MUL, scale, idx, next);});
+    add_sequential([&](auto next) {return Binop::make(rtl::Binop::ADD, idx, lstaddress, next);});
+    auto ps = fresh_pseudo();
+    lastoffset += 8;
+    add_sequential([&](auto next) {return Load::make("", 0, ps, lstaddress, bx::amd64::reg::rip, next);});
+    result = ps;
   }
 
   void visit(source::Deref const &drf) override{
-
+    drf.ptr->acceptAddress(*this);
+    auto ps = fresh_pseudo();
+    lastoffset += 8;
+    add_sequential([&](auto next) {return Load::make("", 0, ps, address,bx::amd64::reg::rip, next);});
+    result = ps;
   }
 
 
@@ -618,16 +670,25 @@ public:
     auto tmpaddr = address;
     lelm.idx->accept(*this);
     auto tmpidx = result;
+    source::IntConstantPtr ioffset;
+    if (auto lst = dynamic_cast<source::LIST*>(lelm.lst->meta->ty)){
+      ioffset =  source::IntConstant::make(source::sizeOf(lst->typ));
+    }
+    ioffset->accept(*this);
+    add_sequential([&](auto next){return Binop::make(Binop::MUL, result, tmpidx, next);});
+    add_sequential([&](auto next){return Binop::make(Binop::ADD, tmpidx, tmpaddr, next);});
     auto ps = fresh_pseudo();
     lastoffset += 8;
-    
+    add_sequential([&](auto next){return CopyAP::make("", 0,bx::amd64::reg::rip, tmpaddr,  ps, next);});
+    address = ps;
   }
   
   void visitAddress(source::Deref const &drf) override {
     drf.ptr->acceptAddress(*this);
     auto ps = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next){ return Load::make("", 0, ps, address, bx::amd64::reg::rbp, next);});
+    add_sequential([&](auto next){ return Load::make("", 0, ps, address, 
+                                          bx::amd64::reg::rbp, next);});
     address = ps;
   }
 };

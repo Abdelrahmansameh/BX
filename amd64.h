@@ -119,7 +119,8 @@ public:
   static ptr mnemonic##q(Pseudo const &src, std::string gv, Pseudo const &dest) { \
     std::string repr = "\t" #mnemonic "q `s0, " + gv + "(`d0)";                   \
     return std::unique_ptr<Asm>(new Asm{{src}, {dest}, {}, repr});                \
-  }  
+  }                                                                               
+  
 
   ARITH_BINOP(mov)
   ARITH_BINOP(lea)

@@ -282,7 +282,37 @@ public:
     append(Asm::movq(Pseudo{reg::r12}, cp.dest, Pseudo{reg::rip})); 
     append(Asm::jmp(label_translate(cp.succ)));
   }
-  ///////////////////////////////////////////////////////
+  
+  void visit(rtl::CopyAP const &cp) override{
+    if (cp.pbase != rtl::discard_pr){
+      if (cp.goffset == ""){
+        append(Asm::leaq(cp.offset, Pseudo{cp.base}, Pseudo{reg::r13}));
+        append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+      else{
+        append(Asm::leaq(cp.offset, Pseudo{cp.base}, Pseudo{reg::r13}));
+        append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+    }
+    else{
+      if (cp.goffset == ""){
+        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r12}));
+        append(Asm::leaq(cp.offset, Pseudo{reg::r12}, Pseudo{reg::r13}));
+        append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+      else{
+        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r12}));
+        append(Asm::leaq(cp.offset, Pseudo{reg::r12}, Pseudo{reg::r13}));
+        append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }    
+    }
+  }
+  
+  ////////////////////////////////// /////////////////////
 };
 
 std::vector<AsmProgram> rtl_to_asm(rtl::Program const &prog) {
