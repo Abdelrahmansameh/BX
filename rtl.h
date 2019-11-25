@@ -13,9 +13,8 @@
 
 #ifndef CONSTRUCTOR
 #define CONSTRUCTOR(Cls, ...)                                                  \
-  template <typename... Args>                                                  \
-  static Cls* make(Args &&... args) {                    \
-    return new Cls(std::forward<Args>(args)...);         \
+  template <typename... Args> static Cls *make(Args &&... args) {              \
+    return new Cls(std::forward<Args>(args)...);                               \
   }                                                                            \
                                                                                \
 private:                                                                       \
@@ -42,10 +41,10 @@ std::ostream &operator<<(std::ostream &out, Pseudo const &r);
 constexpr Pseudo discard_pr{-1};
 
 struct Instr;
-using InstrPtr = Instr*;
+using InstrPtr = Instr *;
 
 struct Move;
-struct Copy; // copy between pseudo
+struct Copy;   // copy between pseudo
 struct CopyMP; // copy machine registers to pseudo
 struct CopyPM; // copy pseudo to machine registers
 struct CopyAP;
@@ -58,26 +57,26 @@ struct Ubranch;
 struct Goto;
 struct Call;
 struct Return;
-//struct CopyAPagg;
-//struct Storeagg;
-struct NewFrame;    ///////////////////////////////
-struct DelFrame;    ///////////////////////////////
-struct LoadParam;   ///////////////////////////////
-struct Push;        ///////////////////////////////
-struct Pop;         ///////////////////////////////
+// struct CopyAPagg;
+// struct Storeagg;
+struct NewFrame;  ///////////////////////////////
+struct DelFrame;  ///////////////////////////////
+struct LoadParam; ///////////////////////////////
+struct Push;      ///////////////////////////////
+struct Pop;       ///////////////////////////////
 
 struct InstrVisitor {
   virtual ~InstrVisitor() = default;
 #define VISIT_FUNCTION(caseclass) virtual void visit(caseclass const &) = 0
   VISIT_FUNCTION(Move);
-  VISIT_FUNCTION(Copy); 
-  VISIT_FUNCTION(CopyMP); 
-  VISIT_FUNCTION(CopyPM); 
+  VISIT_FUNCTION(Copy);
+  VISIT_FUNCTION(CopyMP);
+  VISIT_FUNCTION(CopyPM);
   VISIT_FUNCTION(CopyAP);
   VISIT_FUNCTION(Load);
   VISIT_FUNCTION(Store);
-  //VISIT_FUNCTION(CopyAPagg);
-  //VISIT_FUNCTION(Storeagg);
+  // VISIT_FUNCTION(CopyAPagg);
+  // VISIT_FUNCTION(Storeagg);
   VISIT_FUNCTION(Binop);
   VISIT_FUNCTION(Unop);
   VISIT_FUNCTION(Bbranch);
@@ -137,8 +136,7 @@ struct CopyMP : public Instr {
     RBX, R12, R13, R14, R15
   };*/
 
-
-  char const * src;
+  char const *src;
   Pseudo dest;
   Label succ;
 
@@ -146,7 +144,7 @@ struct CopyMP : public Instr {
     return out << "copy " << src << ", " << dest << "  --> " << succ;
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(CopyMP, char const * src, Pseudo dest, Label succ)
+  CONSTRUCTOR(CopyMP, char const *src, Pseudo dest, Label succ)
       : src{src}, dest{dest}, succ{succ} {}
 };
 
@@ -158,39 +156,43 @@ struct CopyPM : public Instr {
   }; */
 
   Pseudo src;
-  char const * dest;
+  char const *dest;
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
     return out << "copy " << src << ", " << dest << "  --> " << succ;
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(CopyPM, Pseudo src, char const * dest, Label succ)
+  CONSTRUCTOR(CopyPM, Pseudo src, char const *dest, Label succ)
       : src{src}, dest{dest}, succ{succ} {}
 };
 
-
-struct CopyAP : public Instr{
-  std::string goffset; //if empty string dont use
-  int offset;  // if -1 dont use
-  char const * base;
-  Pseudo pbase, dst; //pbase is discard if not used
+struct CopyAP : public Instr {
+  std::string goffset; // if empty string dont use
+  int offset;          // if -1 dont use
+  char const *base;
+  Pseudo pbase, dst; // pbase is discard if not used
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
-    out << "copy address" << goffset << "(" << base << " - " ;
-    if (offset > -1 ){
-      out << offset;
+    out << "copy address" << goffset << "(";
+    if (pbase == discard_pr) {
+      out << base;
+    } else {
+      out << pbase;
     }
-    out << " " << pbase << " * 1 ) into " << dst;
+    if (offset < 1) {
+      out << " + " << offset;
+    }
+    out << " into " << dst;
     return out << "  --> " << succ;
   }
 
   MAKE_VISITABLE
-  CONSTRUCTOR(CopyAP, std::string goffset, int offset,
-              char const * base, Pseudo pbase, Pseudo dst, Label succ) :
-             goffset{goffset}, offset{offset}, base{base},
-             pbase{pbase}, dst{dst}, succ{succ} {} 
+  CONSTRUCTOR(CopyAP, std::string goffset, int offset, char const *base,
+              Pseudo pbase, Pseudo dst, Label succ)
+      : goffset{goffset}, offset{offset}, base{base}, pbase{pbase}, dst{dst},
+        succ{succ} {}
 };
 
 /*
@@ -199,7 +201,8 @@ struct CopyAPagg : public Instr {
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
-    return out << "load " << rb << ", " << ri << ", " << ">>" << ro << "  --> "
+    return out << "load " << rb << ", " << ri << ", " << ">>" << ro << "  -->
+"
                << succ;
   }
   MAKE_VISITABLE
@@ -214,7 +217,8 @@ struct Storeagg : public Instr {
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
-    return out << "store " << r << ", " << rb << ", " << ri << ", " << "  --> "
+    return out << "store " << r << ", " << rb << ", " << ri << ", " << "  -->
+"
                << succ;
   }
   MAKE_VISITABLE
@@ -224,59 +228,56 @@ struct Storeagg : public Instr {
 };
 */
 
-//LAB 4 VERSION
+// LAB 4 VERSION
 struct Load : public Instr {
-  
+
   std::string src; // "" if not used
-  int offset; 
-  Pseudo pbase, dest; //pbase is discard if not used
-  const char * mbase; //use iff pbase is discard
+  int offset;
+  Pseudo pbase, dest; // pbase is discard if not used
+  const char *mbase;  // use iff pbase is discard
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
     out << "load " << src << "( ";
-    if (pbase != discard_pr){
+    if (pbase != discard_pr) {
       return out << pbase << "+" << offset << ") into " << dest << "  --> "
-               << succ;
-    }
-    else{
+                 << succ;
+    } else {
       return out << mbase << "+" << offset << ") into " << dest << "  --> "
-               << succ;
+                 << succ;
     }
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(Load, std::string const &src, int offset,
-             Pseudo dest, Pseudo pbase, const char * mbase,  Label succ)
-            : src{src}, offset{offset}, pbase{pbase}, dest{dest},
-             mbase{mbase}, succ{succ} {}
+  CONSTRUCTOR(Load, std::string const &src, int offset, Pseudo dest,
+              Pseudo pbase, const char *mbase, Label succ)
+      : src{src}, offset{offset}, pbase{pbase}, dest{dest}, mbase{mbase},
+        succ{succ} {}
 };
 
 struct Store : public Instr {
   Pseudo src;
-  std::string dest; // "" if not used
-  Pseudo pbase; // is discard if not used
-  const char * mbase; // use iff pbase is discard
+  std::string dest;  // "" if not used
+  Pseudo pbase;      // is discard if not used
+  const char *mbase; // use iff pbase is discard
   int offset;
   Label succ;
 
   std::ostream &print(std::ostream &out) const override {
     out << "store " << src << " into " << dest << "(";
-    if (pbase != discard_pr){
-      return out << pbase << "+" << offset << ")" << "--> "
-               << succ;
-    }
-    else{
-      return out << mbase << "+" << offset << ")" <<"--> "
-               << succ;
+    if (pbase != discard_pr) {
+      return out << pbase << "+" << offset << ")"
+                 << "--> " << succ;
+    } else {
+      return out << mbase << "+" << offset << ")"
+                 << "--> " << succ;
     }
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(Store, Pseudo src, std::string const &dest, Pseudo pbase, 
-              const char * mbase, int offset, Label succ)
-      : src{src}, dest{dest}, pbase{pbase}, mbase{mbase}, 
-      offset{offset}, succ{succ} {}
+  CONSTRUCTOR(Store, Pseudo src, std::string const &dest, Pseudo pbase,
+              const char *mbase, int offset, Label succ)
+      : src{src}, dest{dest}, pbase{pbase}, mbase{mbase}, offset{offset},
+        succ{succ} {}
 };
-
 
 struct Unop : public Instr {
   enum Code : uint16_t { NEG, NOT };
@@ -381,11 +382,11 @@ struct Call : public Instr {
 
   std::ostream &print(std::ostream &out) const override {
     out << "call " << func << "(" << Nargs;
-    return out << ")" << "  --> " << succ;
+    return out << ")"
+               << "  --> " << succ;
   }
   MAKE_VISITABLE
-  CONSTRUCTOR(Call, std::string func, int Nargs,
-              Label succ)
+  CONSTRUCTOR(Call, std::string func, int Nargs, Label succ)
       : func{func}, Nargs(Nargs), succ{succ} {}
 };
 
@@ -471,7 +472,7 @@ using LabelMap = std::unordered_map<Label, V, LabelHash, LabelEq>;
 
 struct Callable {
   std::string name;
-  Label enter , leave;
+  Label enter, leave;
   std::vector<Pseudo> input_regs;
   Pseudo output_reg;
   LabelMap<InstrPtr> body;
@@ -488,7 +489,6 @@ struct Callable {
   }
 };
 std::ostream &operator<<(std::ostream &out, Callable const &cbl);
-
 
 using Program = std::vector<Callable>;
 

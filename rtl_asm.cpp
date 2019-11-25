@@ -218,7 +218,7 @@ public:
     append(Asm::jmp(label_translate(c.succ)));
   }
 
-  void visit(rtl::Return const &ret) override { 
+  void visit(rtl::Return const &ret) override {
     /*Pseudo arg = lookup(ret.arg);
     append(Asm::movq(arg, Pseudo{reg::rax}));
     append(Asm::jmp(exit_label)); */
@@ -234,7 +234,7 @@ public:
   void visit(rtl::NewFrame const &cp) override {
     append(Asm::pushq(Pseudo{reg::rbp}));
     append(Asm::movq(Pseudo{reg::rsp}, Pseudo{reg::rbp}));
-    append(Asm::subq(cp.size*8, Pseudo{reg::rsp}));
+    append(Asm::subq(cp.size * 8, Pseudo{reg::rsp}));
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
@@ -255,9 +255,11 @@ public:
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
- void visit(rtl::LoadParam const &cp) override {
-    append(Asm::movq(cp.source*8+8, Pseudo{reg::rbp}, Pseudo{reg::rcx}));          ///////////////////????????????????????????
-    append(Asm::movq(Pseudo{reg::rcx}, lookup(cp.dest))); 
+  void visit(rtl::LoadParam const &cp) override {
+    append(Asm::movq(
+        cp.source * 8 + 8, Pseudo{reg::rbp},
+        Pseudo{reg::rcx})); ///////////////////????????????????????????
+    append(Asm::movq(Pseudo{reg::rcx}, lookup(cp.dest)));
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
@@ -267,64 +269,62 @@ public:
   }
 
   void visit(rtl::Pop const &cp) override {
-      append(Asm::popq(lookup(cp.dest)));
-      append(Asm::jmp(label_translate(cp.succ)));
-    }
+    append(Asm::popq(lookup(cp.dest)));
+    append(Asm::jmp(label_translate(cp.succ)));
+  }
 
   void visit(rtl::Load const &cp) override {
-    append(Asm::movq(cp.src, Pseudo{reg::rip}, Pseudo{reg::r12})); 
-    append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest))); 
+    append(Asm::movq(cp.src, Pseudo{reg::rip}, Pseudo{reg::r12}));
+    append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest)));
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
   void visit(rtl::Store const &cp) override {
     append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
-    append(Asm::movq(Pseudo{reg::r12}, cp.dest, Pseudo{reg::rip})); 
+    append(Asm::movq(Pseudo{reg::r12}, cp.dest, Pseudo{reg::rip}));
     append(Asm::jmp(label_translate(cp.succ)));
   }
-  
-  void visit(rtl::CopyAP const &cp) override{
-    if (cp.pbase != rtl::discard_pr){
-      if (cp.goffset == ""){
+
+  void visit(rtl::CopyAP const &cp) override {
+    if (cp.pbase == rtl::discard_pr) {
+      if (cp.goffset == "") {
+        append(Asm::leaq(cp.offset, Pseudo{cp.base}, Pseudo{reg::r13}));
+        append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      } else {
         append(Asm::leaq(cp.offset, Pseudo{cp.base}, Pseudo{reg::r13}));
         append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
         append(Asm::jmp(label_translate(cp.succ)));
       }
-      else{
-        append(Asm::leaq(cp.offset, Pseudo{cp.base}, Pseudo{reg::r13}));
+    } else {
+      if (cp.goffset == "") {
+        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r12}));
+        append(Asm::leaq(cp.offset, Pseudo{reg::r12}, Pseudo{reg::r13}));
         append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
         append(Asm::jmp(label_translate(cp.succ)));
-      }
-    }
-    else{
-      if (cp.goffset == ""){
+      } else {
         append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r12}));
         append(Asm::leaq(cp.offset, Pseudo{reg::r12}, Pseudo{reg::r13}));
         append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
         append(Asm::jmp(label_translate(cp.succ)));
       }
-      else{
-        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r12}));
-        append(Asm::leaq(cp.offset, Pseudo{reg::r12}, Pseudo{reg::r13}));
-        append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
-        append(Asm::jmp(label_translate(cp.succ)));
-      }    
     }
   }
-  
+
   ////////////////////////////////// /////////////////////
 };
 
 std::vector<AsmProgram> rtl_to_asm(rtl::Program const &prog) {
   std::vector<AsmProgram> p;
   for (auto const &c : prog) {
-      InstrCompiler icomp{c.name};
-      for (auto const &l : c.schedule) {
-        icomp.append_label(l);
-        //std::unique_ptr<const bx::rtl::Instr> tmp = new bx::rtl::Instr{*c.body.find(l)->second};
-        c.body.find(l)->second->accept(icomp);
-      }
-      p.push_back(icomp.finalize());
+    InstrCompiler icomp{c.name};
+    for (auto const &l : c.schedule) {
+      icomp.append_label(l);
+      // std::unique_ptr<const bx::rtl::Instr> tmp = new
+      // bx::rtl::Instr{*c.body.find(l)->second};
+      c.body.find(l)->second->accept(icomp);
+    }
+    p.push_back(icomp.finalize());
   }
   return p;
 }

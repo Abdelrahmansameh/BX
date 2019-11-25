@@ -1,7 +1,7 @@
 #include <stdexcept>
 
-#include "ast_rtl.h"
 #include "amd64.h"
+#include "ast_rtl.h"
 
 namespace bx {
 
@@ -16,14 +16,14 @@ int last_label = 0;
 inline rtl::Label fresh_label() { return rtl::Label{last_label++}; }
 
 /**
-* List of global variable initializations
-*/
-std::map<std::string, int > global_var_init;
+ * List of global variable initializations
+ */
+std::map<std::string, int> global_var_init;
 
 /**
  * Mapping from global variable to offset
  */
-std::map<std::string, int > global_var_offset;
+std::map<std::string, int> global_var_offset;
 
 /**
  * Size of heap
@@ -37,7 +37,9 @@ int globaloffset = 0;
  * for statements, int64 expressions, boolean expressions, etc. with modest
  * increase in code complexity.
  */
-struct RtlGen : public source::StmtVisitor, public source::ExprVisitor, public source::Addressor {
+struct RtlGen : public source::StmtVisitor,
+                public source::ExprVisitor,
+                public source::Addressor {
   /** input label where "next" instruction will be
    *
    * After code gen:
@@ -57,7 +59,8 @@ struct RtlGen : public source::StmtVisitor, public source::ExprVisitor, public s
    */
   rtl::Pseudo result{-1};
   /**
-   * For assignables: address becomes a pseudo holding the address of the assignable
+   * For assignables: address becomes a pseudo holding the address of the
+   * assignable
    */
   rtl::Pseudo address{-1};
 
@@ -71,18 +74,18 @@ private:
   std::unordered_map<std::string, rtl::Pseudo> var_table;
 
   /**
-   * Mapping from variables to offset 
+   * Mapping from variables to offset
    */
   std::unordered_map<std::string, int> var_offset;
 
   /**
-  * List of global variables
-  */
+   * List of global variables
+   */
   std::unordered_map<std::string, rtl::Pseudo> gvar_table;
 
   /*
-  * Last offset
-  */
+   * Last offset
+   */
   int lastoffset = 0;
 
   /**
@@ -90,16 +93,18 @@ private:
    * mapping. Return the pseudo in either case.
    */
   rtl::Pseudo get_pseudo(std::string const &v) {
-    if (global_var_init.find(v) !=  global_var_init.end()){
-      if (gvar_table.find(v) == gvar_table.end()){
+    if (global_var_init.find(v) != global_var_init.end()) {
+      if (gvar_table.find(v) == gvar_table.end()) {
         auto ps = fresh_pseudo();
         lastoffset += 8;
-        add_sequential([&](auto next) { return Load::make(v, 0, ps,discard_pr,bx::amd64::reg::rip, next); });
+        add_sequential([&](auto next) {
+          return Load::make(v, 0, ps, discard_pr, bx::amd64::reg::rip, next);
+        });
         gvar_table.insert_or_assign(v, ps);
       }
       return gvar_table.at(v);
     }
-    if (var_table.find(v) == var_table.end()){
+    if (var_table.find(v) == var_table.end()) {
       var_table.insert_or_assign(v, fresh_pseudo());
       var_offset.insert_or_assign(v, lastoffset);
       lastoffset += 8;
@@ -156,7 +161,7 @@ public:
 
     // Source callable
     auto &cbl = source_prog.callables.at(rtl_cbl.name);
-    
+
     // input pseudos
     for (auto const &param : cbl->args) {
       Pseudo reg = get_pseudo(param.first);
@@ -164,113 +169,114 @@ public:
     }
 
     // output pseudo
-    if (dynamic_cast<source::UNKNOWN*>(cbl->return_ty)){ 
+    if (dynamic_cast<source::UNKNOWN *>(cbl->return_ty)) {
       rtl_cbl.output_reg = rtl::discard_pr;
-    }
-    else{
-      rtl_cbl.output_reg =fresh_pseudo();
+    } else {
+      rtl_cbl.output_reg = fresh_pseudo();
       lastoffset += 8;
     }
 
     // enter label
     rtl_cbl.enter = fresh_label();
     lastoffset += 8;
-    
-    //leave label
+
+    // leave label
     rtl_cbl.leave = fresh_label();
     lastoffset += 8;
 
     // Update in_label
     in_label = rtl_cbl.enter;
-    
-    // Placehold the new frame first 
+
+    // Placehold the new frame first
     auto fresh = fresh_label();
     lastoffset += 8;
     auto tmpin = in_label;
     in_label = fresh;
 
-    //Save the callee saved registers O_o
-    char const *  callee_saved[] = {
-        bx::amd64::reg::rbx,
-        bx::amd64::reg::rbp,
-        bx::amd64::reg::r12,
-        bx::amd64::reg::r13,
-        bx::amd64::reg::r14,
-        bx::amd64::reg::r15
-    };
+    // Save the callee saved registers O_o
+    char const *callee_saved[] = {bx::amd64::reg::rbx, bx::amd64::reg::rbp,
+                                  bx::amd64::reg::r12, bx::amd64::reg::r13,
+                                  bx::amd64::reg::r14, bx::amd64::reg::r15};
     std::vector<rtl::Pseudo> saved_locs;
-    for (int i = 0; i < 6; i++){
+    for (int i = 0; i < 6; i++) {
       auto ps = fresh_pseudo();
       lastoffset += 8;
       saved_locs.push_back(ps);
-      add_sequential([&](auto next) { return CopyMP::make(callee_saved[i], ps, next);});
+      add_sequential(
+          [&](auto next) { return CopyMP::make(callee_saved[i], ps, next); });
     }
 
     // Retrieve the arguments
-    int nArgs =  static_cast<int>(cbl->args.size());
-    char const * regargs[] = {
-        bx::amd64::reg::rdi, 
-        bx::amd64::reg::rsi,
-        bx::amd64::reg::rdx,
-        bx::amd64::reg::rcx,
-        bx::amd64::reg::r8,
-        bx::amd64::reg::r9};
+    int nArgs = static_cast<int>(cbl->args.size());
+    char const *regargs[] = {bx::amd64::reg::rdi, bx::amd64::reg::rsi,
+                             bx::amd64::reg::rdx, bx::amd64::reg::rcx,
+                             bx::amd64::reg::r8,  bx::amd64::reg::r9};
     bool stackParams = nArgs > 6;
-    if (!stackParams){
-      for (int i = 0; i < nArgs; i++){
-        add_sequential(
-          [&](auto next) { return CopyMP::make(regargs[i], rtl_cbl.input_regs[i],next); });
+    if (!stackParams) {
+      for (int i = 0; i < nArgs; i++) {
+        add_sequential([&](auto next) {
+          return CopyMP::make(regargs[i], rtl_cbl.input_regs[i], next);
+        });
+      }
+    } else {
+      for (int i = 0; i < 6; i++) {
+        add_sequential([&](auto next) {
+          return CopyMP::make(regargs[i], rtl_cbl.input_regs[i], next);
+        });
+      }
+      for (int i = 6; i < nArgs + 1; i++) {
+        add_sequential([&](auto next) {
+          return LoadParam::make(i - 5, rtl_cbl.input_regs[i], next);
+        });
       }
     }
-    else{
-      for (int i = 0; i < 6; i++){
-        add_sequential(
-          [&](auto next) { return CopyMP::make(regargs[i], rtl_cbl.input_regs[i],next); });
-      }
-      for (int i = 6; i < nArgs +1 ; i++ ){
-        add_sequential(
-          [&](auto next) { return LoadParam::make(i -5, rtl_cbl.input_regs[i],next); });
-      }
-    }
-    //Process all the statements
+    // Process all the statements
     cbl->body->accept(*this);
 
-    //Put the return value in rax
-    if (!dynamic_cast<source::UNKNOWN*>(cbl->return_ty)){
-      add_sequential([&](auto next) { return CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, next);});
+    // Put the return value in rax
+    if (!dynamic_cast<source::UNKNOWN *>(cbl->return_ty)) {
+      add_sequential([&](auto next) {
+        return CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, next);
+      });
     }
 
-    rtl_cbl.add_instr(rtl_cbl.leave, Goto::make(in_label));    
+    rtl_cbl.add_instr(rtl_cbl.leave, Goto::make(in_label));
     // Restore the calle saved registers
-    for (int i = 0; i < 6; i++){
-      add_sequential([&](auto next) { return CopyPM::make(saved_locs[i], callee_saved[i],  next);});
+    for (int i = 0; i < 6; i++) {
+      add_sequential([&](auto next) {
+        return CopyPM::make(saved_locs[i], callee_saved[i], next);
+      });
     }
     // Update the size of NewFrame
     pseudoCounter -= last_pseudo;
     rtl_cbl.add_instr(tmpin, NewFrame::make(fresh, lastoffset));
 
     // Insert a Delframe
-    //rtl_cbl.add_instr(in_label, DelFrame::make(rtl_cbl.leave));
-    add_sequential([&](auto next) { return DelFrame::make(next);});    
-    
+    // rtl_cbl.add_instr(in_label, DelFrame::make(rtl_cbl.leave));
+    add_sequential([&](auto next) { return DelFrame::make(next); });
+
     // Return
-    //rtl_cbl.add_instr(rtl_cbl.leave, Return::make());
-    add_sequential([&](auto next) {       
+    // rtl_cbl.add_instr(rtl_cbl.leave, Return::make());
+    add_sequential([&](auto next) {
       (void)next; // suppress unused warning
-      return Return::make();});
+      return Return::make();
+    });
   }
 
   rtl::Callable &&deliver() { return std::move(rtl_cbl); }
 
-
-  void addMemset(int offset, int size){
+  void addMemset(int offset, int size) {
     auto rbp = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next) { return CopyMP::make(bx::amd64::reg::rbp, rbp, next); });
+    add_sequential([&](auto next) {
+      return CopyMP::make(bx::amd64::reg::rbp, rbp, next);
+    });
     auto ioffset = source::IntConstant::make(offset);
     ioffset->accept(*this);
     auto poffset = result;
-    add_sequential([&](auto next) { return Binop::make(rtl::Binop::SUB, rbp, poffset, next);});
+    add_sequential([&](auto next) {
+      return Binop::make(rtl::Binop::SUB, rbp, poffset, next);
+    });
     auto isize = source::IntConstant::make(size);
     isize->accept(*this);
     auto psize = result;
@@ -278,33 +284,40 @@ public:
     izero->accept(*this);
     auto pzero = result;
     // rdi rsi rdx
-    add_sequential([&](auto next) { return CopyPM::make(poffset, bx::amd64::reg::rdi,next);});
-    add_sequential([&](auto next) { return CopyPM::make(pzero, bx::amd64::reg::rsi, next);});
-    add_sequential([&](auto next) { return CopyPM::make(psize, bx::amd64::reg::rdx, next);});
-    add_sequential([&](auto next) { return Call::make("memset", 3, next); });  
-    }
+    add_sequential([&](auto next) {
+      return CopyPM::make(poffset, bx::amd64::reg::rdi, next);
+    });
+    add_sequential([&](auto next) {
+      return CopyPM::make(pzero, bx::amd64::reg::rsi, next);
+    });
+    add_sequential([&](auto next) {
+      return CopyPM::make(psize, bx::amd64::reg::rdx, next);
+    });
+    add_sequential([&](auto next) { return Call::make("memset", 3, next); });
+  }
   void visit(source::Declare const &dec) override {
-    if (dynamic_cast<source::BOOL*>(dec.ty)){
+    if (dynamic_cast<source::BOOL *>(dec.ty)) {
       auto pr = get_pseudo(dec.var);
       dec.init->accept(*this);
       intify();
       add_sequential([&](auto next) { return Copy::make(result, pr, next); });
     }
-    if (dynamic_cast<source::INT64*>(dec.ty)){
+    if (dynamic_cast<source::INT64 *>(dec.ty)) {
       auto pr = get_pseudo(dec.var);
       dec.init->accept(*this);
       add_sequential([&](auto next) { return Copy::make(result, pr, next); });
     }
-    if (dynamic_cast<source::POINTER*>(dec.ty)){
+    if (dynamic_cast<source::POINTER *>(dec.ty)) {
       auto pr = get_pseudo(dec.var);
       dec.init->accept(*this);
       add_sequential([&](auto next) { return Copy::make(result, pr, next); });
     }
-    if (auto lst = dynamic_cast<source::LIST*>(dec.ty)){
+    if (auto lst = dynamic_cast<source::LIST *>(dec.ty)) {
       auto pr = get_pseudo(dec.var);
-      //addMemset(var_offset.at(dec.var), source::sizeOf(lst->typ));
-      //dec.init->accept(*this);
-      //add_sequential([&](auto next) { return Copy::make(result, pr, next); });
+      // addMemset(var_offset.at(dec.var), source::sizeOf(lst->typ));
+      // dec.init->accept(*this);
+      // add_sequential([&](auto next) { return Copy::make(result, pr, next);
+      // });
     }
   }
 
@@ -312,11 +325,12 @@ public:
     mv.left->acceptAddress(*this);
     auto source_reg = address;
     mv.right->accept(*this);
-    if (dynamic_cast<source::BOOL*>(mv.right->meta->ty))
+    if (dynamic_cast<source::BOOL *>(mv.right->meta->ty))
       intify();
     std::cout << source_reg << std::endl;
-    add_sequential([&](auto next) {return Store::make(result, "", 
-                                          source_reg, bx::amd64::reg::rbp, 0, next);});
+    add_sequential([&](auto next) {
+      return Store::make(result, "", source_reg, bx::amd64::reg::rbp, 0, next);
+    });
     /*if (gvar_table.find(mv.left) == gvar_table.end()){
       add_sequential(
         [&](auto next) { return Copy::make(result, source_reg, next); });
@@ -331,23 +345,21 @@ public:
 
   void visit(source::Eval const &ev) override {
     ev.expr->accept(*this);
-    if (dynamic_cast<source::BOOL*>(ev.expr->meta->ty))
+    if (dynamic_cast<source::BOOL *>(ev.expr->meta->ty))
       intify();
   }
 
   void visit(source::Print const &pr) override {
     pr.arg->accept(*this);
-    if (dynamic_cast<source::BOOL*>(pr.arg->meta->ty))
+    if (dynamic_cast<source::BOOL *>(pr.arg->meta->ty))
       intify();
-    std::string func =
-        dynamic_cast<source::INT64*>(pr.arg->meta->ty) ? "bx_print_int" : "bx_print_bool";
+    std::string func = dynamic_cast<source::INT64 *>(pr.arg->meta->ty)
+                           ? "bx_print_int"
+                           : "bx_print_bool";
     add_sequential([&](auto next) {
       return CopyPM::make(result, bx::amd64::reg::rdi, next);
     });
-    add_sequential([&](auto next) {
-      return Call::make(func, 1,
-                        next);
-    });
+    add_sequential([&](auto next) { return Call::make(func, 1, next); });
   }
 
   void visit(source::Block const &bl) override {
@@ -386,14 +398,16 @@ public:
   void visit(source::Return const &ret) override {
     if (ret.arg) {
       ret.arg->accept(*this);
-      if (dynamic_cast<source::BOOL*>(ret.arg->meta->ty))
+      if (dynamic_cast<source::BOOL *>(ret.arg->meta->ty))
         intify();
-      if (rtl_cbl.output_reg != rtl::discard_pr){
+      if (rtl_cbl.output_reg != rtl::discard_pr) {
         add_sequential([&](auto next) {
           return Copy::make(result, rtl_cbl.output_reg, next);
         });
-        //Put the return value in rax
-        add_sequential([&](auto next) { return CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, next);});    
+        // Put the return value in rax
+        add_sequential([&](auto next) {
+          return CopyPM::make(rtl_cbl.output_reg, bx::amd64::reg::rax, next);
+        });
       }
     }
     add_sequential([&](auto next) {
@@ -404,7 +418,7 @@ public:
 
   void visit(source::Variable const &v) override {
     result = get_pseudo(v);
-    if (dynamic_cast<source::BOOL*>(v.meta->ty)) {
+    if (dynamic_cast<source::BOOL *>(v.meta->ty)) {
       false_label = fresh_label();
       add_sequential([&](auto next) {
         return Ubranch::make(rtl::Ubranch::JNZ, result, next, false_label);
@@ -522,11 +536,11 @@ public:
     if (bo.op != source::Binop::Eq && bo.op != source::Binop::Neq)
       return; // case not relevant
     bo.left_arg->accept(*this);
-    if (dynamic_cast<source::BOOL*>(bo.left_arg->meta->ty))
+    if (dynamic_cast<source::BOOL *>(bo.left_arg->meta->ty))
       intify();
     auto left_result = result;
     bo.right_arg->accept(*this);
-    if (dynamic_cast<source::BOOL*>(bo.right_arg->meta->ty))
+    if (dynamic_cast<source::BOOL *>(bo.right_arg->meta->ty))
       intify();
     false_label = fresh_label();
     auto bbr_op =
@@ -551,116 +565,124 @@ public:
       args.push_back(result);
     }
     int nArgs = static_cast<int>(args.size());
-    char const * regargs[] = {
-        bx::amd64::reg::rdi,
-        bx::amd64::reg::rsi,
-        bx::amd64::reg::rdx,
-        bx::amd64::reg::rcx,
-        bx::amd64::reg::r8,
-        bx::amd64::reg::r9};
+    char const *regargs[] = {bx::amd64::reg::rdi, bx::amd64::reg::rsi,
+                             bx::amd64::reg::rdx, bx::amd64::reg::rcx,
+                             bx::amd64::reg::r8,  bx::amd64::reg::r9};
     bool stackParams = nArgs > 6;
-    if (!stackParams){
-      for (int i = 0; i < nArgs; i++){
+    if (!stackParams) {
+      for (int i = 0; i < nArgs; i++) {
         add_sequential(
-          [&](auto next) { return CopyPM::make(args[i], regargs[i], next); });
+            [&](auto next) { return CopyPM::make(args[i], regargs[i], next); });
+      }
+    } else {
+      for (int i = 0; i < 6; i++) {
+        add_sequential(
+            [&](auto next) { return CopyPM::make(args[i], regargs[i], next); });
+      }
+      for (int i = 0; i < nArgs - 5; i++) {
+        add_sequential(
+            [&](auto next) { return Push::make(args[nArgs - i], next); });
       }
     }
-    else{
-      for (int i = 0; i < 6; i++){
-        add_sequential(
-          [&](auto next) { return CopyPM::make(args[i], regargs[i], next); });
-      }
-      for (int i = 0; i<nArgs-5; i++){
-        add_sequential(
-          [&](auto next) { return Push::make(args[nArgs-i], next);});
-      }
-    }
-    if (dynamic_cast<source::UNKNOWN*>(source_prog.callables.at(ca.func)->return_ty)){
+    if (dynamic_cast<source::UNKNOWN *>(
+            source_prog.callables.at(ca.func)->return_ty)) {
       result = rtl::discard_pr;
-    }
-    else{
+    } else {
       result = fresh_pseudo();
       lastoffset += 8;
     }
-    add_sequential(
-      [&](auto next) { return Call::make(ca.func, nArgs, next); });
-    if (!dynamic_cast<source::UNKNOWN*>(source_prog.callables.at(ca.func)->return_ty)){
-      add_sequential(
-        [&](auto next) {return CopyMP::make(bx::amd64::reg::rax, result, next);});
-      }
+    add_sequential([&](auto next) { return Call::make(ca.func, nArgs, next); });
+    if (!dynamic_cast<source::UNKNOWN *>(
+            source_prog.callables.at(ca.func)->return_ty)) {
+      add_sequential([&](auto next) {
+        return CopyMP::make(bx::amd64::reg::rax, result, next);
+      });
     }
+  }
 
-  void visit(source::Alloc const &al) override{
+  void visit(source::Alloc const &al) override {
     auto iscale = source::IntConstant::make(sizeOf(al.typ));
     iscale->accept(*this);
     auto scale = result;
     al.size->accept(*this);
     auto length = result;
-    add_sequential([&](auto next){return Binop::make(rtl::Binop::MUL, scale, length, next);});
+    add_sequential([&](auto next) {
+      return Binop::make(rtl::Binop::MUL, scale, length, next);
+    });
     add_sequential([&](auto next) {
       return CopyPM::make(length, bx::amd64::reg::rdi, next);
     });
     std::string func = "malloc";
-    add_sequential([&](auto next) {
-      return Call::make(func, 1,
-                        next);
-    });
+    add_sequential([&](auto next) { return Call::make(func, 1, next); });
     auto ps = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next) {return CopyMP::make(bx::amd64::reg::rax, ps, next);});
+    add_sequential(
+        [&](auto next) { return CopyMP::make(bx::amd64::reg::rax, ps, next); });
     result = ps;
   }
 
-  void visit(source::Null const &nl) override{
+  void visit(source::Null const &nl) override {
     auto nul = source::IntConstant::make(0);
     nul->accept(*this);
   }
 
-  void visit(source::Address const &adr) override{
+  void visit(source::Address const &adr) override {
     adr.src->acceptAddress(*this);
     result = address;
   }
 
-  void visit(source::ListElem const &lelm ) override{
+  void visit(source::ListElem const &lelm) override {
     lelm.lst->acceptAddress(*this);
     auto lstaddress = address;
     lelm.idx->accept(*this);
     auto idx = result;
     source::IntConstantPtr iscale;
-    if (auto lst = dynamic_cast<source::LIST*>(lelm.lst->meta->ty)){
+    if (auto lst = dynamic_cast<source::LIST *>(lelm.lst->meta->ty)) {
       iscale = source::IntConstant::make(sizeOf(lst->typ));
     }
     iscale->accept(*this);
     auto scale = result;
-    add_sequential([&](auto next) {return Binop::make(rtl::Binop::MUL, scale, idx, next);});
-    add_sequential([&](auto next) {return Binop::make(rtl::Binop::ADD, idx, lstaddress, next);});
+    add_sequential([&](auto next) {
+      return Binop::make(rtl::Binop::MUL, scale, idx, next);
+    });
+    add_sequential([&](auto next) {
+      return Binop::make(rtl::Binop::ADD, idx, lstaddress, next);
+    });
     auto ps = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next) {return Load::make("", 0, ps, lstaddress, bx::amd64::reg::rip, next);});
+    add_sequential([&](auto next) {
+      return Load::make("", 0, ps, lstaddress, bx::amd64::reg::rip, next);
+    });
     result = ps;
   }
 
-  void visit(source::Deref const &drf) override{
+  void visit(source::Deref const &drf) override {
     drf.ptr->acceptAddress(*this);
     auto ps = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next) {return Load::make("", 0, ps, address,bx::amd64::reg::rip, next);});
+    add_sequential([&](auto next) {
+      return Load::make("", 0, ps, address, bx::amd64::reg::rip, next);
+    });
     result = ps;
   }
 
-
   void visitAddress(source::Variable const &va) override {
     auto v = va.label;
-    if (global_var_init.find(v) != global_var_init.end()){
-        auto ps = fresh_pseudo();
-        lastoffset += 8;
-        add_sequential([&](auto next) { return CopyAP::make(v, -1, bx::amd64::reg::rip, discard_pr, ps, next); });
-        address = ps;
-    }
-    if (var_offset.find(v) != var_offset.end()){
+    if (global_var_init.find(v) != global_var_init.end()) {
       auto ps = fresh_pseudo();
       lastoffset += 8;
-      add_sequential([&](auto next) { return CopyAP::make("",var_offset.at(v), bx::amd64::reg::rbp, discard_pr, ps, next); });
+      add_sequential([&](auto next) {
+        return CopyAP::make(v, -1, bx::amd64::reg::rip, discard_pr, ps, next);
+      });
+      address = ps;
+    }
+    if (var_offset.find(v) != var_offset.end()) {
+      auto ps = fresh_pseudo();
+      lastoffset += 8;
+      add_sequential([&](auto next) {
+        return CopyAP::make("", -var_offset.at(v), bx::amd64::reg::rbp,
+                            discard_pr, ps, next);
+      });
       address = ps;
     }
   }
@@ -671,62 +693,72 @@ public:
     lelm.idx->accept(*this);
     auto tmpidx = result;
     source::IntConstantPtr ioffset;
-    if (auto lst = dynamic_cast<source::LIST*>(lelm.lst->meta->ty)){
-      ioffset =  source::IntConstant::make(source::sizeOf(lst->typ));
+    if (auto lst = dynamic_cast<source::LIST *>(lelm.lst->meta->ty)) {
+      ioffset = source::IntConstant::make(source::sizeOf(lst->typ));
     }
     ioffset->accept(*this);
-    add_sequential([&](auto next){return Binop::make(Binop::MUL, result, tmpidx, next);});
-    add_sequential([&](auto next){return Binop::make(Binop::ADD, tmpidx, tmpaddr, next);});
+    add_sequential([&](auto next) {
+      return Binop::make(Binop::MUL, result, tmpidx, next);
+    });
+    add_sequential([&](auto next) {
+      return Binop::make(Binop::ADD, tmpidx, tmpaddr, next);
+    });
     auto ps = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next){return CopyAP::make("", 0,bx::amd64::reg::rip, tmpaddr,  ps, next);});
+    add_sequential([&](auto next) {
+      return CopyAP::make("", 0, bx::amd64::reg::rip, tmpaddr, ps, next);
+    });
     address = ps;
   }
-  
+
   void visitAddress(source::Deref const &drf) override {
     drf.ptr->acceptAddress(*this);
     auto ps = fresh_pseudo();
     lastoffset += 8;
-    add_sequential([&](auto next){ return Load::make("", 0, ps, address, 
-                                          bx::amd64::reg::rbp, next);});
+    add_sequential([&](auto next) {
+      return Load::make("", 0, ps, address, bx::amd64::reg::rbp, next);
+    });
     address = ps;
   }
 };
 
-std::map<std::string, int> getGlobals(source::Program const &src_prog){
+std::map<std::string, int> getGlobals(source::Program const &src_prog) {
   for (auto &glb : src_prog.global_vars) {
-    //Seperated the cases for debgging
-    if (dynamic_cast<source::INT64*>(glb.second->ty) || 
-    dynamic_cast<source::BOOL*>(glb.second->ty) ) {
-      int* init = glb.second->init->getArg();
-      if (init == NULL){
-        std::cout << "Bad variable initialization for " << glb.first << std::endl;
-      }
-      else{
+    // Seperated the cases for debgging
+    if (dynamic_cast<source::INT64 *>(glb.second->ty) ||
+        dynamic_cast<source::BOOL *>(glb.second->ty)) {
+      int *init = glb.second->init->getArg();
+      if (init == NULL) {
+        std::cout << "Bad variable initialization for " << glb.first
+                  << std::endl;
+      } else {
         global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
-        global_var_offset.insert(std::pair<std::string, int>(glb.first, globaloffset));
+        global_var_offset.insert(
+            std::pair<std::string, int>(glb.first, globaloffset));
         globaloffset += bx::source::sizeOf(glb.second->ty);
       }
     }
-    if (dynamic_cast<source::POINTER*>(glb.second->ty)){
-      int* init = glb.second->init->getArg();
-      if (init == NULL){
-        std::cout << "Bad variable initialization for " << glb.first << std::endl;
-      }
-      else{
+    if (dynamic_cast<source::POINTER *>(glb.second->ty)) {
+      int *init = glb.second->init->getArg();
+      if (init == NULL) {
+        std::cout << "Bad variable initialization for " << glb.first
+                  << std::endl;
+      } else {
         global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
-        global_var_offset.insert(std::pair<std::string, int>(glb.first, globaloffset));
+        global_var_offset.insert(
+            std::pair<std::string, int>(glb.first, globaloffset));
         globaloffset += bx::source::sizeOf(glb.second->ty);
       }
     }
-    if (dynamic_cast<source::LIST*>(glb.second->ty)){
-      int* init = glb.second->init->getArg();
-      if (init == NULL){
-        std::cout << "Bad variable initialization for " << glb.first << std::endl;
-      }
-      else{
+    if (dynamic_cast<source::LIST *>(glb.second->ty)) {
+      int *init = glb.second->init->getArg();
+      if (init == NULL) {
+        std::cout << "Bad variable initialization for " << glb.first
+                  << std::endl;
+      } else {
         global_var_init.insert(std::pair<std::string, int>(glb.first, *init));
-        global_var_offset.insert(std::pair<std::string, int>(glb.first, globaloffset));
+        global_var_offset.insert(
+            std::pair<std::string, int>(glb.first, globaloffset));
         globaloffset += bx::source::sizeOf(glb.second->ty);
       }
     }
@@ -741,7 +773,7 @@ rtl::Program transform(source::Program const &src_prog) {
     rtl_prog.push_back(gen.deliver());
   }
   return rtl_prog;
-  //return std::make_pair(rtl_prog, global_var_init);
+  // return std::make_pair(rtl_prog, global_var_init);
 }
 
 } // namespace rtl
