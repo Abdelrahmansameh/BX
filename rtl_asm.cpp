@@ -234,7 +234,7 @@ public:
   void visit(rtl::NewFrame const &cp) override {
     append(Asm::pushq(Pseudo{reg::rbp}));
     append(Asm::movq(Pseudo{reg::rsp}, Pseudo{reg::rbp}));
-    append(Asm::subq(cp.size * 8, Pseudo{reg::rsp}));
+    append(Asm::subq(cp.size, Pseudo{reg::rsp}));
     append(Asm::jmp(label_translate(cp.succ)));
   }
 
@@ -274,15 +274,61 @@ public:
   }
 
   void visit(rtl::Load const &cp) override {
-    append(Asm::movq(cp.src, Pseudo{reg::rip}, Pseudo{reg::r12}));
-    append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest)));
-    append(Asm::jmp(label_translate(cp.succ)));
+    if (cp.src != ""){
+      if (cp.pbase == rtl::discard_pr){
+        append(Asm::movq(cp.src, Pseudo{cp.mbase}, Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+      else{
+        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r13}));
+        append(Asm::movq(cp.src, Pseudo{reg::r13}, Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+    }
+    else{
+      if (cp.pbase == rtl::discard_pr){
+        append(Asm::movq(cp.offset, Pseudo{cp.mbase}, Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+      else{
+        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r13}));
+        append(Asm::movq(cp.offset, Pseudo{reg::r13}, Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, lookup(cp.dest)));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+    }
   }
 
   void visit(rtl::Store const &cp) override {
-    append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
-    append(Asm::movq(Pseudo{reg::r12}, cp.dest, Pseudo{reg::rip}));
-    append(Asm::jmp(label_translate(cp.succ)));
+    if (cp.dest != ""){
+      if (cp.pbase == rtl::discard_pr){
+        append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, cp.dest, Pseudo{cp.mbase}));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+      else{
+        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r13}));
+        append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, cp.dest, Pseudo{reg::r13}));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+    }
+    else{
+      if (cp.pbase == rtl::discard_pr){
+        append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, cp.offset, Pseudo{cp.mbase}));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+      else{
+        append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r13}));
+        append(Asm::movq(lookup(cp.src), Pseudo{reg::r12}));
+        append(Asm::movq(Pseudo{reg::r12}, cp.offset, Pseudo{reg::r13}));
+        append(Asm::jmp(label_translate(cp.succ)));
+      }
+    }
   }
 
   void visit(rtl::CopyAP const &cp) override {
@@ -292,7 +338,7 @@ public:
         append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
         append(Asm::jmp(label_translate(cp.succ)));
       } else {
-        append(Asm::leaq(cp.offset, Pseudo{cp.base}, Pseudo{reg::r13}));
+        append(Asm::leaq(cp.goffset, Pseudo{cp.base}, Pseudo{reg::r13}));
         append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
         append(Asm::jmp(label_translate(cp.succ)));
       }
@@ -304,7 +350,7 @@ public:
         append(Asm::jmp(label_translate(cp.succ)));
       } else {
         append(Asm::movq(lookup(cp.pbase), Pseudo{reg::r12}));
-        append(Asm::leaq(cp.offset, Pseudo{reg::r12}, Pseudo{reg::r13}));
+        append(Asm::leaq(cp.goffset, Pseudo{reg::r12}, Pseudo{reg::r13}));
         append(Asm::movq(Pseudo{reg::r13}, lookup(cp.dst)));
         append(Asm::jmp(label_translate(cp.succ)));
       }

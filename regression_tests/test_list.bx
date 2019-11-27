@@ -1,5 +1,6 @@
 fun f(x1, x2 : int64) : int64 {
     var y = 0 : int64[3];
+    print(y[0]);
     y[0] = x1;
     y[1] = x2;
     y[3] = y[0] + y[1];

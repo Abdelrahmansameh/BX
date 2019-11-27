@@ -92,11 +92,11 @@ private:
    * Check if the variable is mapped to a pseudo; if not, create a fresh such
    * mapping. Return the pseudo in either case.
    */
-  rtl::Pseudo get_pseudo(std::string const &v) {
+  rtl::Pseudo get_pseudo(std::string const &v, int offset) {
     if (global_var_init.find(v) != global_var_init.end()) {
       if (gvar_table.find(v) == gvar_table.end()) {
         auto ps = fresh_pseudo();
-        lastoffset += 8;
+        lastoffset += offset;
         add_sequential([&](auto next) {
           return Load::make(v, 0, ps, discard_pr, bx::amd64::reg::rip, next);
         });
@@ -107,13 +107,13 @@ private:
     if (var_table.find(v) == var_table.end()) {
       var_table.insert_or_assign(v, fresh_pseudo());
       var_offset.insert_or_assign(v, lastoffset);
-      lastoffset += 8;
+      lastoffset += offset;
     }
     return var_table.at(v);
   }
 
   rtl::Pseudo get_pseudo(source::Variable const &v) {
-    return get_pseudo(v.label);
+    return get_pseudo(v.label, source::sizeOf(v.meta->ty));
   }
 
   /**
@@ -164,7 +164,7 @@ public:
 
     // input pseudos
     for (auto const &param : cbl->args) {
-      Pseudo reg = get_pseudo(param.first);
+      Pseudo reg = get_pseudo(param.first, source::sizeOf(param.second));
       rtl_cbl.input_regs.push_back(reg);
     }
 
@@ -266,7 +266,8 @@ public:
   rtl::Callable &&deliver() { return std::move(rtl_cbl); }
 
   void addMemset(int offset, int size) {
-    auto rbp = fresh_pseudo();
+    //auto offset = lastoffset;
+    /*auto rbp = fresh_pseudo();
     lastoffset += 8;
     add_sequential([&](auto next) {
       return CopyMP::make(bx::amd64::reg::rbp, rbp, next);
@@ -276,6 +277,11 @@ public:
     auto poffset = result;
     add_sequential([&](auto next) {
       return Binop::make(rtl::Binop::SUB, rbp, poffset, next);
+    });*/
+    auto poffset = fresh_pseudo();
+    lastoffset += 8;
+    add_sequential([&](auto next) {
+        return CopyAP::make("", -offset, bx::amd64::reg::rbp, discard_pr, poffset, next);
     });
     auto isize = source::IntConstant::make(size);
     isize->accept(*this);
@@ -297,27 +303,28 @@ public:
   }
   void visit(source::Declare const &dec) override {
     if (dynamic_cast<source::BOOL *>(dec.ty)) {
-      auto pr = get_pseudo(dec.var);
+      auto pr = get_pseudo(dec.var, 8);
       dec.init->accept(*this);
       intify();
       add_sequential([&](auto next) { return Copy::make(result, pr, next); });
     }
     if (dynamic_cast<source::INT64 *>(dec.ty)) {
-      auto pr = get_pseudo(dec.var);
+      auto pr = get_pseudo(dec.var, 8);
       dec.init->accept(*this);
       add_sequential([&](auto next) { return Copy::make(result, pr, next); });
     }
     if (dynamic_cast<source::POINTER *>(dec.ty)) {
-      auto pr = get_pseudo(dec.var);
+      auto pr = get_pseudo(dec.var, 8);
       dec.init->accept(*this);
       add_sequential([&](auto next) { return Copy::make(result, pr, next); });
     }
     if (auto lst = dynamic_cast<source::LIST *>(dec.ty)) {
-      auto pr = get_pseudo(dec.var);
-      // addMemset(var_offset.at(dec.var), source::sizeOf(lst->typ));
-      // dec.init->accept(*this);
-      // add_sequential([&](auto next) { return Copy::make(result, pr, next);
-      // });
+      auto pr = get_pseudo(dec.var, source::sizeOf(lst));
+      std::cout << pr << std::endl;
+      addMemset(var_offset.at(dec.var), source::sizeOf(lst));
+      dec.init->accept(*this);
+      add_sequential([&](auto next) { return Copy::make(result, pr, next);
+      });
     }
   }
 
@@ -327,7 +334,6 @@ public:
     mv.right->accept(*this);
     if (dynamic_cast<source::BOOL *>(mv.right->meta->ty))
       intify();
-    std::cout << source_reg << std::endl;
     add_sequential([&](auto next) {
       return Store::make(result, "", source_reg, bx::amd64::reg::rbp, 0, next);
     });
@@ -646,7 +652,7 @@ public:
       return Binop::make(rtl::Binop::MUL, scale, idx, next);
     });
     add_sequential([&](auto next) {
-      return Binop::make(rtl::Binop::ADD, idx, lstaddress, next);
+      return Binop::make(rtl::Binop::SUB, idx, lstaddress, next);
     });
     auto ps = fresh_pseudo();
     lastoffset += 8;
@@ -701,7 +707,7 @@ public:
       return Binop::make(Binop::MUL, result, tmpidx, next);
     });
     add_sequential([&](auto next) {
-      return Binop::make(Binop::ADD, tmpidx, tmpaddr, next);
+      return Binop::make(Binop::SUB, tmpidx, tmpaddr, next);
     });
     auto ps = fresh_pseudo();
     lastoffset += 8;

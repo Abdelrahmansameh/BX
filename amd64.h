@@ -119,8 +119,11 @@ public:
   static ptr mnemonic##q(Pseudo const &src, std::string gv, Pseudo const &dest) { \
     std::string repr = "\t" #mnemonic "q `s0, " + gv + "(`d0)";                   \
     return std::unique_ptr<Asm>(new Asm{{src}, {dest}, {}, repr});                \
-  }                                                                               
-  
+  }                                                                               \
+  static ptr mnemonic##q(Pseudo const &src, int64_t i, Pseudo const &dest) {      \
+    std::string repr = "\t" #mnemonic "q `s0," + std::to_string(i) + "(`d0)";    \
+    return std::unique_ptr<Asm>(new Asm{{src}, {dest}, {}, repr});                \
+  }             
 
   ARITH_BINOP(mov)
   ARITH_BINOP(lea)
@@ -141,7 +144,7 @@ public:
     return std::unique_ptr<Asm>(new Asm{{factor, Pseudo{reg::rax}},
                                         {Pseudo{reg::rax}, Pseudo{reg::rdx}},
                                         {},
-                                        "imulq `s0"});
+                                        "\timulq `s0"});
   }
 
   static ptr idivq(Pseudo const &divisor) {
@@ -149,7 +152,7 @@ public:
         new Asm{{divisor, Pseudo{reg::rax}, Pseudo{reg::rdx}},
                 {Pseudo{reg::rax}, Pseudo{reg::rdx}},
                 {},
-                "idivq `s0"});
+                "\tidivq `s0"});
   }
 
   static ptr cmpq(Pseudo const &arg1, Pseudo const &arg2) {
